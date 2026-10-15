@@ -1,0 +1,66 @@
+{
+  "name": "tabula-tools",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tabula build tools: the headless export engine (compile, bake, repack, KTX2, fonts), the tabula CLI, the Tabula app and its desktop shell",
+  "type": "module",
+  "main": "./dist/export/index.js",
+  "types": "./dist/export/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/export/index.d.ts",
+      "import": "./dist/export/index.js"
+    }
+  },
+  "bin": {
+    "tabula": "./dist/cli/index.js"
+  },
+  "files": [
+    "dist",
+    "dist-app"
+  ],
+  "scripts": {
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.check.json",
+    "lint": "eslint src app tests scripts --ext .ts",
+    "audit": "tsx src/cli/index.ts audit ../tabula-pixi/test-assets",
+    "app": "vite --config app/vite.config.ts",
+    "app:build": "vite build --config app/vite.config.ts",
+    "desktop": "npm run build && npm run app:build && node desktop/run.mjs",
+    "desktop:dist": "npm run build && npm run app:build && electron-builder --config desktop/electron-builder.json",
+    "report:ktx": "tsx scripts/ktx-quality.ts",
+    "report:drawcalls": "tsx scripts/scene-drawcalls.ts",
+    "docs": "tsx scripts/gen-api-docs.ts"
+  },
+  "dependencies": {
+    "tabula-pixi": "file:../tabula-pixi"
+  },
+  "optionalDependencies": {
+    "msdfgen-wasm": "1.0.0",
+    "sharp": "^0.33.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
+    "eslint": "^8.55.0",
+    "harfbuzzjs": "1.6.3",
+    "pixi.js": "^7.4.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "author": "Miljenko Brkić",
+  "license": "UNLICENSED",
+  "keywords": [
+    "spine",
+    "tabula",
+    "pixijs",
+    "export",
+    "cli"
+  ]
+}

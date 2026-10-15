@@ -1,0 +1,13 @@
+{
+  "maxSize": 2048,
+  "padding": 2,
+  "extrude": 0,
+  "ktx2": "uastc",
+  "tiers": [1, 0.75, 0.5],
+  "groups": [
+    {
+      "name": "game",
+      "skeletons": ["symbol?", "reelLandscape", "backgroundLandscape", "spinButton", "autoplayButton", "storeButton", "increaseBetButton", "decreaseBetButton", "bigWinGradingLandscape"]
+    }
+  ]
+}

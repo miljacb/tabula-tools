@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tabula</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <header>
+    <strong class="brand">Tabula</strong>
+    <button id="open" title="Open another project folder">Open…</button>
+    <span id="project-path" class="muted"></span>
+    <span class="spacer"></span>
+    <span id="status" class="muted"></span>
+    <button id="export" class="primary" hidden title="Compress the checked skeletons and write the export folder with its manifest">Export</button>
+  </header>
+  <section id="start" hidden>
+    <div class="start-card">
+      <h1>Open a project</h1>
+      <p class="muted">A folder with Spine JSON exports (with their .atlas and page images), sprite sheets and fonts. The export goes to <code>tabula-export</code> inside it.</p>
+      <div id="drop" class="drop">
+        <button id="pick" class="primary">Open folder…</button>
+        <span class="muted" id="drop-hint">or drop a folder here</span>
+      </div>
+      <form id="path-form" class="path-form">
+        <input id="path-input" type="text" placeholder="/path/to/assets" spellcheck="false" aria-label="Folder path">
+        <button type="submit">Open</button>
+      </form>
+      <p id="start-error" class="error"></p>
+      <h2>Recent</h2>
+      <ul id="recent" class="recent"></ul>
+    </div>
+  </section>
+  <main>
+    <aside id="assets" aria-label="Assets"></aside>
+    <section id="preview-pane">
+      <div class="toolbar">
+        <label>Animation <select id="animation"></select></label>
+        <label>Show
+          <select id="mode">
+            <option value="both">Source and exported</option>
+            <option value="source">Source (JSON)</option>
+            <option value="exported">Exported</option>
+            <option value="scene">Scene (performance)</option>
+          </select>
+        </label>
+        <label class="scene-only" title="How many skeletons the scene draws: the selected one's page set, repeated">Count
+          <select id="scene-count"><option>9</option><option selected>15</option><option>20</option><option>30</option><option>45</option></select>
+        </label>
+        <label class="scene-only" id="throttle-label" title="Slow the CPU down like a weak phone (desktop app)">Weak device
+          <select id="throttle"><option value="1">Off</option><option value="4">CPU 4× slower</option><option value="6">CPU 6× slower</option></select>
+        </label>
+        <label title="The tier the game would load. The game picks it; this previews each.">Tier <select id="tier"></select></label>
+        <label title="Load KTX2 pages (GPU-compressed) where the export has them"><input type="checkbox" id="ktx2" checked> KTX2</label>
+      </div>
+      <div id="stage">
+        <div class="stage-label left" id="label-left"></div>
+        <div class="stage-label right" id="label-right"></div>
+        <div id="stage-empty" class="muted">Select an asset</div>
+        <div id="stats" hidden></div>
+      </div>
+      <div id="details"></div>
+    </section>
+    <aside id="side">
+      <section id="settings"></section>
+      <section id="report"></section>
+    </aside>
+  </main>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>
