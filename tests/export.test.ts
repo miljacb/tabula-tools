@@ -94,7 +94,7 @@ describe('exportProject', () => {
     expect(report.images).toEqual(['logo']);
     expect(readdirSync(out).sort()).toEqual(['.tabula-export', 'assets.manifest.json', 'export-report.json', 'game.tbla', 'game@0.5x.tbla']);
     expect(report.bundles.map((b) => [b.path, b.tier])).toEqual([['game.tbla', 1], ['game@0.5x.tbla', 0.5]]);
-    const half = readBundle(new Uint8Array(readFileSync(join(out, 'game@0.5x.tbla')))).toc.files.map((f) => f.path);
+    const half = (await readBundle(new Uint8Array(readFileSync(join(out, 'game@0.5x.tbla'))))).toc.files.map((f) => f.path);
     expect(half).toEqual(expect.arrayContaining(['symbol1.tabula', 'symbol1.baked', 'atlas@0.5x.png', 'images/logo@0.5x.png', 'sprites/ui/icons@0.5x.json', 'sprites/ui/icons@0.5x.png']));
     expect(half.some((p) => p === 'atlas.png' || p === 'images/logo.png')).toBe(false); // only its tier's pages
 
@@ -115,6 +115,49 @@ describe('exportProject', () => {
     expect(Object.keys(m.getSprites('icons').textures)).toEqual(['star']);
     expect(m.getTexture('logo').baseTexture).toBeTruthy();
     expect(requested).toEqual(['/assets/assets.manifest.json', '/assets/game@0.5x.tbla']);
+    m.destroy();
+    vi.unstubAllGlobals();
+  });
+
+  it('release with KTX2: data, KTX2 and image bundles per tier; a device reads the data and one page format', async () => {
+    const src = await project();
+    const out = join(src, 'export');
+    const ktx2 = new Uint8Array(readFileSync(new URL('./fixtures/gradient16x8-uastc.ktx2', import.meta.url)));
+    const progress: Extract<ExportEvent, { type: 'progress' }>[] = [];
+    const report = await exportProject({
+      sourceDir: src, outDir: out, config: { imageFormat: 'png', tiers: [1, 0.5], ktx2: 'uastc' }, encodeKtx2: async () => ktx2,
+      onEvent: (e) => { if (e.type === 'progress') progress.push(e); },
+    });
+    // Phases arrive in order (atlas pages, then sprite and image pages, then skeletons, ...), so the bar only moves forward.
+    const order = ['read', 'pack', 'pages', 'skeletons', 'copy', 'manifest'];
+    expect(progress.map((e) => order.indexOf(e.phase))).toEqual(progress.map((e) => order.indexOf(e.phase)).sort((a, b) => a - b));
+    expect(progress.map((e) => e.fraction)).toEqual(progress.map((e) => e.fraction).sort((a, b) => a - b));
+    expect(progress.at(-1)!.fraction).toBe(1);
+    expect(report.bundles.map((b) => [b.path, b.kind])).toEqual([
+      ['game.tbla', 'data'], ['game.ktx2.tbla', 'ktx2'], ['game.images.tbla', 'images'],
+      ['game@0.5x.tbla', 'data'], ['game@0.5x.ktx2.tbla', 'ktx2'], ['game@0.5x.images.tbla', 'images'],
+    ]);
+    const paths = async (file: string): Promise<string[]> => (await readBundle(new Uint8Array(readFileSync(join(out, file))))).toc.files.map((f) => f.path);
+    expect(await paths('game.ktx2.tbla')).toEqual(expect.arrayContaining(['atlas.ktx2', 'sprites/ui/icons.ktx2']));
+    expect((await paths('game.images.tbla')).every((p) => p.endsWith('.png'))).toBe(true);
+    expect((await paths('game.tbla')).some((p) => p.endsWith('.ktx2') || p === 'atlas.png')).toBe(false);
+    // Per device: the data bundle plus one page bundle, exactly the files written.
+    const size = (file: string): number => readFileSync(join(out, file)).length;
+    expect(report.downloads.tiers.find((t) => t.tier === 1)).toEqual({ tier: 1, ktx2: size('game.tbla') + size('game.ktx2.tbla'), images: size('game.tbla') + size('game.images.tbla') });
+
+    // Without KTX2 (no renderer and transcoder) the manager never opens the KTX2 bundle.
+    class FakeBitmap { width = 4096; height = 4096; close(): void {} }
+    vi.stubGlobal('ImageBitmap', FakeBitmap);
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => new FakeBitmap()));
+    const requested: string[] = [];
+    const fakeFetch = (async (input: RequestInfo | URL) => {
+      const url = String(input).split('?')[0]!;
+      requested.push(url);
+      return new Response(readFileSync(join(out, url.replace('/assets/', ''))));
+    }) as typeof fetch;
+    const m = await TabulaAssetManager.load('/assets/assets.manifest.json', { fetch: fakeFetch, workers: false, json: spineJson });
+    await m.loadGroup('base');
+    expect(requested.sort()).toEqual(['/assets/assets.manifest.json', '/assets/game.images.tbla', '/assets/game.tbla']);
     m.destroy();
     vi.unstubAllGlobals();
   });

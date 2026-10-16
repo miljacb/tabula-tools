@@ -113,6 +113,18 @@ th, td { text-align: right; padding: 3px 4px; border-bottom: 1px solid var(--lin
 th:first-child, td:first-child { text-align: left; }
 th { font-weight: 500; color: var(--muted); font-size: 11px; }
 .big { font-size: 18px; font-weight: 600; }
+.report .hint, .small { font-size: 11px; }
+.downloads { display: flex; flex-direction: column; gap: 6px; }
+.downloads td { white-space: nowrap; vertical-align: top; }
+.downloads table.tier th:first-child { color: var(--fg, inherit); font-weight: 600; }
+.downloads .note { font-size: 12px; border-left: 3px solid var(--accent); padding: 2px 8px; }
+.downloads table.facts td { text-align: left; white-space: normal; font-size: 12px; }
+.downloads table.facts td:first-child { color: var(--muted); width: 32%; vertical-align: top; }
+.bundles summary { cursor: pointer; }
+.bundles table { table-layout: fixed; margin-top: 4px; font-size: 12px; }
+.bundles td { white-space: nowrap; }
+.bundles td.path { overflow: hidden; text-overflow: ellipsis; width: 55%; }
+.bundle-list { max-height: 220px; overflow: auto; }
 .log { font: 11px/1.4 ui-monospace, Menlo, monospace; max-height: 160px; overflow: auto; white-space: pre-wrap; color: var(--muted); }
 .log .bad { color: var(--bad); }
 .log .warn { color: var(--warn); }

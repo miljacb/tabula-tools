@@ -36,11 +36,12 @@ import { checkKtxTool, encodeKtx2 } from './pack/ktx2.js';
 import type { Ktx2EncodeOptions } from './pack/ktx2.js';
 import { availableTiers, buildAssetManifest, contentHash, globToRegExp, isSpineJson } from 'tabula-pixi/core/manifest.js';
 import type { AssetManifest, ManifestBundle, ManifestExtras, ManifestGroup, ManifestInputFile, TierCost } from 'tabula-pixi/core/manifest.js';
-import { writeBundle } from 'tabula-pixi/core/tbla.js';
+import { type BundleFile, writeBundle } from 'tabula-pixi/core/tbla.js';
 import { resolveTier, tierFileName, tierSize } from 'tabula-pixi/core/texture-formats.js';
 import type { BasisCodec, TextureManifest } from 'tabula-pixi/core/texture-formats.js';
 import type { AtlasPage } from 'tabula-pixi/core/types.js';
 import type { TabulaProjectConfig } from './config.js';
+import { toolsCacheDir } from './cache-dir.js';
 
 /** Marks a folder written by {@link exportProject} (only such a folder is emptied). */
 export const EXPORT_MARKER = '.tabula-export';
@@ -79,7 +80,7 @@ export interface ExportOptions {
   config?: TabulaProjectConfig;
   /** Skeletons to compress (names or globs); the rest are exported raw. Default: all. */
   compress?: string[];
-  /** KTX2 encodings cache (default `<sourceDir>/.tabula-cache/ktx2`). */
+  /** KTX2 encodings cache (default `ktx2/` in the tools cache, see `toolsCacheDir`: never inside the project). */
   cacheDir?: string;
   onEvent?: (event: ExportEvent) => void;
   /** KTX2 encoder (default: the `ktx` tool, cached); returning null keeps the page as an image. */
@@ -118,6 +119,12 @@ export interface ExportReport {
   conflicts: string[];
   /** Download and GPU memory per tier, all pages. */
   tiers: TierCost[];
+  /** What one device downloads (see {@link DeviceDownloads}). */
+  downloads: DeviceDownloads;
+  /** Atlas and image pages at 1× (sizes scale with the tier). */
+  pages: { name: string; width: number; height: number; ktx2: boolean }[];
+  /** Compressed skeleton data: `.tabula` and `.baked` bytes (kept in memory while loaded) and how many are baked. */
+  data: { tabulaBytes: number; bakedBytes: number; baked: number };
   warnings: string[];
   /** Bytes of the raw exports (skeletons with their pages, sprite sheets, fonts). */
   sourceBytes: number;
@@ -147,9 +154,11 @@ export async function exportProject(options: ExportOptions): Promise<ExportRepor
   };
   const tiers = [...new Set([1, ...(config.tiers ?? [1])])].sort((a, b) => b - a);
   const phases = Object.keys(PHASE_WEIGHTS) as ExportPhase[];
+  // Phases run in PHASE_WEIGHTS order; the fraction never goes back (a phase may write fewer files than counted).
+  let reached = 0;
   const progress = async (phase: ExportPhase, done: number, total: number, item: string): Promise<void> => {
     const before = phases.slice(0, phases.indexOf(phase)).reduce((n, p) => n + PHASE_WEIGHTS[p], 0);
-    const fraction = Math.min(1, before + PHASE_WEIGHTS[phase] * (total ? Math.min(done, total) / total : 1));
+    const fraction = reached = Math.max(reached, Math.min(1, before + PHASE_WEIGHTS[phase] * (total ? Math.min(done, total) / total : 1)));
     emit({ type: 'progress', fraction, phase, done, total, item });
     await tick();
   };
@@ -169,7 +178,7 @@ export async function exportProject(options: ExportOptions): Promise<ExportRepor
   const extras: ManifestExtras = { images: {}, spritePages: {} };
   let imageFormat: PageImageFormat = config.imageFormat ?? 'png';
   const groupsFile: RepackGroupsFile = { ...config.atlas, ktx2: config.ktx2, tiers };
-  const baseEncode = options.encodeKtx2 ?? cachedKtx2(options.cacheDir ?? join(sourceDir, '.tabula-cache', 'ktx2'), warn);
+  const baseEncode = options.encodeKtx2 ?? cachedKtx2(options.cacheDir ?? join(toolsCacheDir(), 'ktx2'), warn);
   let pageFiles = 0;
   let pageTotal = 0;
   const encode: typeof baseEncode = async (image, opts, file) => {
@@ -263,6 +272,8 @@ export async function exportProject(options: ExportOptions): Promise<ExportRepor
   const codecDefault = config.ktx2 && config.ktx2 !== 'none' ? config.ktx2 : null;
   pageTotal += imagePlans.length * tiers.length * (codecDefault ? 2 : 1);
 
+  /** Groups whose pages were written (their skeletons are compiled after every page is encoded). */
+  const encoded: Awaited<ReturnType<typeof repackAtlases>> = [];
   // Compress: repack per co-draw page group (release) or per skeleton (development), encode tiers / KTX2, compile, bake.
   if (toPack.length) {
     emit({ type: 'step', message: `Compressing ${toPack.length} skeletons` });
@@ -283,8 +294,6 @@ export async function exportProject(options: ExportOptions): Promise<ExportRepor
       const codecOf = ktx2Selector(groupsFile, group.name);
       for (const page of group.atlas.pages) pageTotal += tiers.length * (codecOf(page.name) ? 2 : 1);
     }
-    const skeletonTotal = groups.reduce((n, g) => n + g.skeletons.length, 0);
-    let skeletonsDone = 0;
     for (const group of groups) {
       emit({ type: 'step', message: `Pages "${group.name}": ${group.skeletons.length} skeletons, ${group.atlas.pages.length} pages` });
       const files = new Map<string, Uint8Array>();
@@ -304,52 +313,8 @@ export async function exportProject(options: ExportOptions): Promise<ExportRepor
         continue;
       }
       for (const [name, bytes] of files) write(name, bytes);
-      for (const data of group.skeletons) {
-        const entry = skeletons[data.name]!;
-        await progress('skeletons', skeletonsDone++, skeletonTotal, `${config.bake !== false ? 'Compiling and baking' : 'Compiling'} ${data.name}`);
-        try {
-          const tabula = new Uint8Array(compileSkeleton(data, group.atlas));
-          let baked: Uint8Array | null = null;
-          if (config.bake !== false) {
-            try {
-              baked = new Uint8Array(bakeToBuffer(data, group.atlas, { ...config.bake, noReport: true }).bytes);
-            } catch (err) {
-              warn(`not baked, plays live: ${(err as Error).message}`, data.name);
-            }
-          }
-          write(`${data.name}.tabula`, tabula);
-          if (baked) write(`${data.name}.baked`, baked);
-          Object.assign(entry, { format: 'tabula', group: group.name, bytes: tabula.length + (baked?.length ?? 0) });
-          delete entry.reason;
-        } catch (err) {
-          fallback(data.name, `compile failed: ${(err as Error).message}`);
-        }
-      }
+      encoded.push(group);
     }
-  }
-
-  // Raw skeletons: JSON, atlas and pages as exported, under raw/.
-  const copyTotal = found.skeletons.length + found.fonts.length;
-  let copied = 0;
-  for (const s of found.skeletons) {
-    await progress('copy', copied++, copyTotal, `Copying ${s.name}`);
-    const entry = skeletons[s.name];
-    if (!entry || entry.format !== 'json') continue;
-    const dir = join('raw', relative(sourceDir, dirname(s.json)));
-    const atlas = new AtlasParser().parse(await readFile(s.atlas, 'utf-8'));
-    const missing = atlas.pages.filter((p) => !existsSync(join(dirname(s.atlas), p.name))).map((p) => p.name);
-    if (missing.length) {
-      warn(`page ${missing.join(', ')} not found: not exported`, s.name);
-      delete skeletons[s.name];
-      continue;
-    }
-    let bytes = await copy(s.json, join(dir, basename(s.json)));
-    bytes += await copy(s.atlas, join(dir, basename(s.atlas)));
-    for (const page of atlas.pages) {
-      const target = join(dir, page.name);
-      if (!written.has(posix(target))) bytes += await copy(join(dirname(s.atlas), page.name), target);
-    }
-    entry.bytes = bytes;
   }
 
   // Sprite sheet images and standalone images: pages of their own (tiers, KTX2), like atlas pages.
@@ -387,6 +352,57 @@ export async function exportProject(options: ExportOptions): Promise<ExportRepor
     }
   }
 
+  // Compile and bake the skeletons of every group whose pages were written.
+  const skeletonTotal = encoded.reduce((n, g) => n + g.skeletons.length, 0);
+  let skeletonsDone = 0;
+  for (const group of encoded) {
+    for (const data of group.skeletons) {
+      const entry = skeletons[data.name]!;
+      await progress('skeletons', skeletonsDone++, skeletonTotal, `${config.bake !== false ? 'Compiling and baking' : 'Compiling'} ${data.name}`);
+      try {
+        const tabula = new Uint8Array(compileSkeleton(data, group.atlas));
+        let baked: Uint8Array | null = null;
+        if (config.bake !== false) {
+          try {
+            baked = new Uint8Array(bakeToBuffer(data, group.atlas, { ...config.bake, noReport: true }).bytes);
+          } catch (err) {
+            warn(`not baked, plays live: ${(err as Error).message}`, data.name);
+          }
+        }
+        write(`${data.name}.tabula`, tabula);
+        if (baked) write(`${data.name}.baked`, baked);
+        Object.assign(entry, { format: 'tabula', group: group.name, bytes: tabula.length + (baked?.length ?? 0) });
+        delete entry.reason;
+      } catch (err) {
+        fallback(data.name, `compile failed: ${(err as Error).message}`);
+      }
+    }
+  }
+
+  // Raw skeletons: JSON, atlas and pages as exported, under raw/.
+  const copyTotal = found.skeletons.length + found.fonts.length;
+  let copied = 0;
+  for (const s of found.skeletons) {
+    await progress('copy', copied++, copyTotal, `Copying ${s.name}`);
+    const entry = skeletons[s.name];
+    if (!entry || entry.format !== 'json') continue;
+    const dir = join('raw', relative(sourceDir, dirname(s.json)));
+    const atlas = new AtlasParser().parse(await readFile(s.atlas, 'utf-8'));
+    const missing = atlas.pages.filter((p) => !existsSync(join(dirname(s.atlas), p.name))).map((p) => p.name);
+    if (missing.length) {
+      warn(`page ${missing.join(', ')} not found: not exported`, s.name);
+      delete skeletons[s.name];
+      continue;
+    }
+    let bytes = await copy(s.json, join(dir, basename(s.json)));
+    bytes += await copy(s.atlas, join(dir, basename(s.atlas)));
+    for (const page of atlas.pages) {
+      const target = join(dir, page.name);
+      if (!written.has(posix(target))) bytes += await copy(join(dirname(s.atlas), page.name), target);
+    }
+    entry.bytes = bytes;
+  }
+
   // SDF fonts (`tabula font` output): copied with their pages.
   const fonts: string[] = [];
   for (const font of found.fonts) {
@@ -419,14 +435,17 @@ export async function exportProject(options: ExportOptions): Promise<ExportRepor
   let bundles: BundleReport[] = [];
   if (format === 'tbla') {
     emit({ type: 'step', message: 'Packing .tbla bundles' });
-    const packed = packBundles(manifest, written, mode, tiers);
+    const packed = await packBundles(manifest, written, mode, tiers);
     manifest.version = 3;
     manifest.bundles = packed.entries;
     for (const [path, bytes] of packed.files) out.set(path, bytes);
-    bundles = packed.entries.map((b) => ({ path: b.file.path, tier: b.tier, group: b.group, ...(b.language ? { language: b.language } : {}), bytes: b.file.bytes, files: b.paths.length }));
+    bundles = packed.entries.map((b) => ({
+      path: b.file.path, tier: b.tier, group: b.group, kind: packed.kinds.get(b.file.path)!, ...(b.language ? { language: b.language } : {}), bytes: b.file.bytes, files: b.paths.length,
+    }));
   } else {
     for (const [path, bytes] of written) out.set(path, bytes);
   }
+  const downloads = deviceDownloads(manifest, written, tiers, format === 'tbla' ? bundles : null);
   out.set(MANIFEST_FILE, new TextEncoder().encode(`${JSON.stringify(manifest, null, 1)}\n`));
   await prepareOutDir(outDir);
   for (const [path, bytes] of out) {
@@ -436,7 +455,7 @@ export async function exportProject(options: ExportOptions): Promise<ExportRepor
   let outputBytes = 0;
   for (const bytes of out.values()) outputBytes += bytes.length;
   const report: ExportReport = {
-    manifest, mode, format, skeletons, sprites, images, fonts, bundles, conflicts, tiers: availableTiers(manifest), warnings, sourceBytes, outputBytes, ms: performance.now() - t0,
+    manifest, mode, format, skeletons, sprites, images, fonts, bundles, conflicts, tiers: availableTiers(manifest), downloads, pages: pageList(manifest), data: dataSizes(written), warnings, sourceBytes, outputBytes, ms: performance.now() - t0,
   };
   const summary: Partial<ExportReport> & { date: string } = { ...report, date: new Date().toISOString() };
   delete summary.manifest;
@@ -450,10 +469,79 @@ export interface BundleReport {
   path: string;
   tier: number;
   group: string;
+  kind: BundleKind;
   language?: string;
   bytes: number;
   /** Files inside. */
   files: number;
+}
+
+/**
+ * What one device downloads to load every load group, per tier: the data
+ * plus one copy of each page, KTX2 where the device supports it and the
+ * page has it, the image otherwise. Measured on the files written (bundle
+ * sizes for `.tbla`, file sizes for loose files). Font variants of one
+ * language come on top (`languages`).
+ */
+export interface DeviceDownloads {
+  tiers: {
+    tier: number;
+    /** With KTX2 support; null when no page has KTX2. */
+    ktx2: number | null;
+    /** Without KTX2 support. */
+    images: number;
+  }[];
+  /** Bytes of each language's font variants (a device loads one language). */
+  languages: Record<string, number>;
+}
+
+/** The manifest's pages at 1× and whether each has KTX2. */
+function pageList(manifest: AssetManifest): ExportReport['pages'] {
+  return Object.entries(manifest.pages).map(([name, p]) => ({
+    name, width: p.width, height: p.height, ktx2: !!(p.textureSet && manifest.textureSets[p.textureSet]?.pages[name]?.ktx2),
+  }));
+}
+
+/** Bytes of the compiled skeletons and baked animations written. */
+function dataSizes(written: ReadonlyMap<string, Uint8Array>): ExportReport['data'] {
+  const out = { tabulaBytes: 0, bakedBytes: 0, baked: 0 };
+  for (const [path, bytes] of written) {
+    if (path.endsWith('.tabula')) out.tabulaBytes += bytes.length;
+    else if (path.endsWith('.baked')) { out.bakedBytes += bytes.length; out.baked++; }
+  }
+  return out;
+}
+
+/** {@link DeviceDownloads} of an export: from its bundles, or (loose files) from the files each tier loads. */
+function deviceDownloads(manifest: AssetManifest, written: ReadonlyMap<string, Uint8Array>, tiers: readonly number[], bundles: readonly BundleReport[] | null): DeviceDownloads {
+  const languages: Record<string, number> = {};
+  const hasKtx2 = [...written.keys()].some((p) => /\.ktx2$/i.test(p));
+  const device = (sizes: Record<'data' | 'ktx2' | 'images', number>): DeviceDownloads['tiers'][number]['ktx2'] => (hasKtx2 ? sizes.data + sizes.ktx2 : null);
+  if (bundles) {
+    for (const b of bundles) if (b.language) languages[b.language] = (languages[b.language] ?? 0) + b.bytes;
+    return {
+      languages,
+      tiers: tiers.map((tier) => {
+        const sizes = { data: 0, ktx2: 0, images: 0 };
+        // A development bundle holds all of its asset: a device reads it whole.
+        for (const b of bundles) if (b.tier === tier && !b.language) sizes[b.kind === 'asset' ? 'data' : b.kind] += b.bytes;
+        return { tier, ktx2: device(sizes), images: sizes.data + sizes.images };
+      }),
+    };
+  }
+  const { groupFiles, languageFiles } = assetFiles(manifest, written);
+  const bytes = (paths: Iterable<string>): number => [...new Set(paths)].reduce((n, p) => n + (written.get(p)?.length ?? 0), 0);
+  for (const language of languagesOf(manifest)) languages[language] = bytes(languageFiles(language));
+  return {
+    languages,
+    tiers: tiers.map((tier) => {
+      const paths = [...new Set(Object.keys(manifest.groups).flatMap((g) => groupFiles(g, tier)))];
+      const kindOf = fileKinds(paths);
+      const sizes = { data: 0, ktx2: 0, images: 0 };
+      for (const p of paths) sizes[kindOf(p)] += written.get(p)?.length ?? 0;
+      return { tier, ktx2: device(sizes), images: sizes.data + sizes.images };
+    }),
+  };
 }
 
 /**
@@ -541,15 +629,87 @@ function padToMultipleOf4(image: RgbaImage): RgbaImage {
 }
 
 /**
- * Pack the staged files into `.tbla` bundles, one per tier: release, one per
- * load group (language font variants in a bundle of their language);
- * development, one per asset, each with a manifest inside so it also opens
- * on its own. A file is in one bundle per tier (a page shared by groups
- * goes with the first group that uses it).
+ * Pack the staged files into `.tbla` bundles, per tier: release, per load
+ * group a data bundle and, when pages have KTX2, a KTX2 and an image bundle
+ * (see {@link BundleKind}; language font variants in a bundle of their
+ * language); development, one per asset, each with a manifest inside so it
+ * also opens on its own. A file is in one bundle per tier (a page shared by groups
+ * goes with the first group that uses it). Files keep the group's order
+ * (its skeletons as listed), so a bundle streams in the order it is used.
  */
-export function packBundles(manifest: AssetManifest, files: ReadonlyMap<string, Uint8Array>, mode: 'release' | 'development', tiers: readonly number[]): { entries: ManifestBundle[]; files: Map<string, Uint8Array> } {
+export async function packBundles(manifest: AssetManifest, files: ReadonlyMap<string, Uint8Array>, mode: 'release' | 'development', tiers: readonly number[]): Promise<{ entries: ManifestBundle[]; files: Map<string, Uint8Array>; kinds: Map<string, BundleKind> }> {
   const out = new Map<string, Uint8Array>();
   const entries: ManifestBundle[] = [];
+  const kinds = new Map<string, BundleKind>();
+  const fonts = manifest.fonts ?? {};
+  const { fontFiles, spriteFiles, skeletonFiles, imageFiles, groupFiles, languageFiles } = assetFiles(manifest, files);
+  const fileName = (base: string, tier: number, kind: BundleKind): string => `${base}${tier === 1 ? '' : `@${+tier.toFixed(4)}x`}${kind === 'ktx2' || kind === 'images' ? `.${kind}` : ''}.tbla`;
+  const add = async (base: string, tier: number, group: string, paths: string[], kind: BundleKind, language?: string, embed?: Partial<Record<'skeletons' | 'sprites' | 'fonts' | 'images', string[]>>): Promise<void> => {
+    const unique = [...new Set(paths)].filter((p) => files.has(p));
+    if (!unique.length) return;
+    const contents: BundleFile[] = unique.map((p, order) => ({ path: p, bytes: files.get(p)!, order }));
+    if (embed) contents.push({ path: 'assets.manifest.json', bytes: new TextEncoder().encode(JSON.stringify(embeddedManifest(manifest, files, unique, tier, embed))) });
+    const bytes = await writeBundle(contents, { tier, group, ...(language ? { language } : {}), mode });
+    const path = fileName(base, tier, kind);
+    if (out.has(path)) throw new Error(`Two bundles named ${path}: rename an asset or group`);
+    out.set(path, bytes);
+    kinds.set(path, kind);
+    entries.push({ file: { path, bytes: bytes.length, hash: contentHash(bytes) }, tier, group, ...(language ? { language } : {}), paths: unique });
+  };
+  const bundleTiers = [...new Set(tiers)].sort((a, b) => b - a);
+  if (mode === 'development') {
+    for (const tier of bundleTiers) {
+      for (const name of Object.keys(manifest.skeletons)) await add(name, tier, name, skeletonFiles(name, tier), 'asset', undefined, { skeletons: [name] });
+      for (const name of Object.keys(manifest.sprites)) await add(name, tier, name, spriteFiles(name, tier), 'asset', undefined, { sprites: [name] });
+      for (const name of Object.keys(manifest.images ?? {})) await add(name, tier, name, imageFiles(name, tier), 'asset', undefined, { images: [name] });
+    }
+    for (const name of Object.keys(fonts)) {
+      const own = [...fontFiles(name), ...(fonts[name]!.fallbacks ?? []).flatMap(fontFiles)];
+      await add(name.replace(/@/g, '.'), 1, name, own, 'asset', fonts[name]!.language, { fonts: [fonts[name]!.base ?? name] });
+    }
+    return { entries, files: out, kinds };
+  }
+  // Release: per load group and tier, the data (and pages without KTX2), the KTX2 pages, and the image copies of those
+  // pages; a device reads the data and one of the other two, never streaming through the format it does not use.
+  const groupNames = Object.keys(manifest.groups);
+  const single = groupNames.length === 1;
+  for (const tier of bundleTiers) {
+    const taken = new Set<string>();
+    for (const g of groupNames) {
+      const paths = groupFiles(g, tier).filter((p) => !taken.has(p));
+      for (const p of paths) taken.add(p);
+      const kindOf = fileKinds(paths);
+      for (const kind of ['data', 'ktx2', 'images'] as const) await add(single ? 'game' : g, tier, g, paths.filter((p) => kindOf(p) === kind), kind);
+    }
+  }
+  for (const language of languagesOf(manifest)) await add(`fonts.${language}`, 1, 'fonts', languageFiles(language), 'data', language);
+  return { entries, files: out, kinds };
+}
+
+/**
+ * What a bundle holds: `data` (skeletons, atlases, sprite sheets, fonts and
+ * pages without a KTX2 copy: every device needs them), `ktx2` (KTX2 pages),
+ * `images` (the image copies of pages that also have KTX2: only devices
+ * without KTX2 read them), or `asset` (a development bundle: one asset, all of it).
+ */
+export type BundleKind = 'data' | 'ktx2' | 'images' | 'asset';
+
+/** Kind of each of `paths` (one tier's files): an image is a fallback only when the KTX2 copy of the same page and tier is there too. */
+function fileKinds(paths: readonly string[]): (path: string) => 'data' | 'ktx2' | 'images' {
+  const all = new Set(paths);
+  return (path) => {
+    if (/\.ktx2$/i.test(path)) return 'ktx2';
+    return IMAGE_FILE.test(path) && all.has(path.replace(/\.[^.]+$/, '.ktx2')) ? 'images' : 'data';
+  };
+}
+
+/** Languages of the manifest's font variants. */
+function languagesOf(manifest: AssetManifest): string[] {
+  return [...new Set(Object.values(manifest.fonts ?? {}).map((f) => f.language).filter((l): l is string => !!l))];
+}
+
+/** The files of each asset at a tier, as the manager loads them (a page: its image and, where built, its KTX2 copy). */
+function assetFiles(manifest: AssetManifest, files: ReadonlyMap<string, Uint8Array>) {
   const fonts = manifest.fonts ?? {};
   const fontFiles = (name: string): string[] => {
     const f = fonts[name];
@@ -577,55 +737,21 @@ export function packBundles(manifest: AssetManifest, files: ReadonlyMap<string, 
     return [s.file.path, ...(s.atlas ? [s.atlas.path] : []), ...(s.baked ? [s.baked.path] : []), ...s.pages.flatMap((p) => pageFiles(p, tier))];
   };
   const imageFiles = (name: string, tier: number): string[] => pageFiles(manifest.images![name]!.page, tier);
-  const fileName = (base: string, tier: number): string => `${base}${tier === 1 ? '' : `@${+tier.toFixed(4)}x`}.tbla`;
-  const add = (base: string, tier: number, group: string, paths: string[], language?: string, embed?: Partial<Record<'skeletons' | 'sprites' | 'fonts' | 'images', string[]>>): void => {
-    const unique = [...new Set(paths)].filter((p) => files.has(p));
-    if (!unique.length) return;
-    const contents = unique.map((p) => ({ path: p, bytes: files.get(p)! }));
-    if (embed) contents.push({ path: 'assets.manifest.json', bytes: new TextEncoder().encode(JSON.stringify(embeddedManifest(manifest, files, unique, tier, embed))) });
-    const bytes = writeBundle(contents, { tier, group, ...(language ? { language } : {}), mode });
-    const path = fileName(base, tier);
-    if (out.has(path)) throw new Error(`Two bundles named ${path}: rename an asset or group`);
-    out.set(path, bytes);
-    entries.push({ file: { path, bytes: bytes.length, hash: contentHash(bytes) }, tier, group, ...(language ? { language } : {}), paths: unique });
+  /** A load group's files at `tier` (font variants of a language are not in a group: see `languageFiles`). */
+  const groupFiles = (group: string, tier: number): string[] => {
+    const spec = manifest.groups[group]!;
+    return [
+      ...spec.skeletons.flatMap((n) => skeletonFiles(n, tier)),
+      ...spec.sprites.flatMap((n) => spriteFiles(n, tier)),
+      ...(spec.images ?? []).flatMap((n) => imageFiles(n, tier)),
+      ...(spec.fonts ?? []).filter((n) => fonts[n] && !fonts[n]!.language).flatMap((n) => [...fontFiles(n), ...(fonts[n]!.fallbacks ?? []).flatMap(fontFiles)]),
+    ];
   };
-  const bundleTiers = [...new Set(tiers)].sort((a, b) => b - a);
-  const languageFonts = Object.keys(fonts).filter((n) => fonts[n]!.language);
-  if (mode === 'development') {
-    for (const tier of bundleTiers) {
-      for (const name of Object.keys(manifest.skeletons)) add(name, tier, name, skeletonFiles(name, tier), undefined, { skeletons: [name] });
-      for (const name of Object.keys(manifest.sprites)) add(name, tier, name, spriteFiles(name, tier), undefined, { sprites: [name] });
-      for (const name of Object.keys(manifest.images ?? {})) add(name, tier, name, imageFiles(name, tier), undefined, { images: [name] });
-    }
-    for (const name of Object.keys(fonts)) {
-      const own = [...fontFiles(name), ...(fonts[name]!.fallbacks ?? []).flatMap(fontFiles)];
-      add(name.replace(/@/g, '.'), 1, name, own, fonts[name]!.language, { fonts: [fonts[name]!.base ?? name] });
-    }
-    return { entries, files: out };
-  }
-  const groupNames = Object.keys(manifest.groups);
-  const single = groupNames.length === 1;
-  for (const tier of bundleTiers) {
-    const taken = new Set<string>();
-    for (const g of groupNames) {
-      const spec = manifest.groups[g]!;
-      const paths = [
-        ...spec.skeletons.flatMap((n) => skeletonFiles(n, tier)),
-        ...spec.sprites.flatMap((n) => spriteFiles(n, tier)),
-        ...(spec.images ?? []).flatMap((n) => imageFiles(n, tier)),
-        // Fonts without language variants (and their fallbacks); variants go to their language's bundle.
-        ...(spec.fonts ?? []).filter((n) => fonts[n] && !fonts[n]!.language).flatMap((n) => [...fontFiles(n), ...(fonts[n]!.fallbacks ?? []).flatMap(fontFiles)]),
-      ].filter((p) => !taken.has(p));
-      for (const p of paths) taken.add(p);
-      add(single ? 'game' : g, tier, g, paths);
-    }
-  }
-  const languages = [...new Set(languageFonts.map((n) => fonts[n]!.language!))];
-  for (const language of languages) {
-    const names = languageFonts.filter((n) => fonts[n]!.language === language);
-    add(`fonts@${language}`.replace(/@/g, '.'), 1, 'fonts', names.flatMap((n) => [...fontFiles(n), ...(fonts[n]!.fallbacks ?? []).flatMap(fontFiles)]), language);
-  }
-  return { entries, files: out };
+  /** The font variants of `language` with their fallbacks. */
+  const languageFiles = (language: string): string[] => Object.keys(fonts)
+    .filter((n) => fonts[n]!.language === language)
+    .flatMap((n) => [...fontFiles(n), ...(fonts[n]!.fallbacks ?? []).flatMap(fontFiles)]);
+  return { fontFiles, spriteFiles, skeletonFiles, imageFiles, groupFiles, languageFiles };
 }
 
 /** The manifest of a self-contained development bundle: its members, its files, its tier only. */
@@ -743,7 +869,7 @@ export interface ProjectFiles {
 
 /** Raw exports under `dir` (not in the output or cache folders, not node_modules or dot folders). */
 export async function discoverProject(dir: string, outDir: string, cacheDir?: string): Promise<ProjectFiles> {
-  const skip = new Set([outDir, resolve(cacheDir ?? join(dir, '.tabula-cache'))]);
+  const skip = new Set([outDir, ...(cacheDir ? [resolve(cacheDir)] : [])]);
   const out = { skeletons: [] as SourceSkeleton[], sprites: [] as string[], fonts: [] as string[], images: [] as string[], skel: [] as string[], bundles: [] as string[] };
   const imageFiles: string[] = [];
   const tierSheets: string[] = [];

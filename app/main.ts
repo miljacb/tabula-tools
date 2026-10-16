@@ -13,7 +13,8 @@ import type { AppBundle, AppProject, AppSkeleton } from '../src/cli/app/server.j
 import type { ExportEvent, ExportReport } from '../src/export/export-project.js';
 import type { TabulaProjectConfig } from '../src/export/config.js';
 
-type Report = Omit<ExportReport, 'manifest'> & { date?: string };
+/** export-report.json (`downloads` is missing in reports of older exports). */
+type Report = Omit<ExportReport, 'manifest' | 'downloads' | 'pages' | 'data'> & Partial<Pick<ExportReport, 'downloads' | 'pages' | 'data'>> & { date?: string };
 
 /** What the desktop app's preload adds (desktop/preload.cjs); absent in a browser. */
 interface DesktopBridge {
@@ -627,40 +628,62 @@ function renderReport(log?: HTMLElement): void {
     const list = Object.values(r.skeletons);
     const compressed = list.filter((s) => s.format === 'tabula').length;
     const failed = Object.entries(r.skeletons).filter(([, s]) => s.format === 'json' && s.reason !== 'not selected for compression');
-    const tier1 = r.tiers.find((t) => t.tier === 1);
-    // One device downloads one tier and one copy of each page (KTX2 when it can use it, the image otherwise).
-    const bundled = (tier: number): number | null => r.bundles?.length ? r.bundles.filter((b) => b.tier === tier).reduce((n, b) => n + b.bytes, 0) : null;
-    const device = (t: Report['tiers'][number]): { ktx2: number; image: number } | null => {
-      const total = bundled(t.tier);
-      if (total === null) return null;
-      const data = total - t.imageBytes - (t.ktx2FileBytes ?? 0);
-      return { ktx2: data + t.ktx2Bytes, image: data + t.imageBytes };
-    };
-    const d1 = tier1 && device(tier1);
-    const hasKtx2 = r.tiers.some((t) => (t.ktx2FileBytes ?? 0) > 0);
-    body.append(
-      h('div', {},
-        h('div', { class: 'big', textContent: d1 ? `${kib(hasKtx2 ? d1.ktx2 : d1.image)} per device` : `${kib(r.sourceBytes)} → ${kib(r.outputBytes)}` }),
-        h('div', { class: 'muted', textContent: `${d1 ? `download at 1x${hasKtx2 ? ` (KTX2; ${kib(d1.image)} without)` : ''} · ${kib(r.outputBytes)} on disk, all tiers and formats · source ${kib(r.sourceBytes)}` : 'source → export (all tiers and formats)'} · ${compressed}/${list.length} skeletons compressed · ${r.date ? new Date(r.date).toLocaleString() : ''}` })),
-      h('table', {},
-        h('tr', {}, h('th', { textContent: 'Tier' }), h('th', { textContent: 'Download' }), h('th', { textContent: 'with KTX2' }), h('th', { textContent: 'GPU' }), h('th', { textContent: 'GPU KTX2' })),
-        ...r.tiers.map((t) => {
-          const d = device(t);
-          return h('tr', {}, h('td', { textContent: `${t.tier}x` }), h('td', { textContent: kib(d ? d.image : t.imageBytes) }), h('td', { textContent: kib(d ? d.ktx2 : t.ktx2Bytes) }),
-            h('td', { textContent: `${kib(t.vramBytes)}${tier1 && t.tier !== 1 ? ` (${Math.round((t.vramBytes / tier1.vramBytes) * 100)}%)` : ''}` }),
-            h('td', { textContent: kib(t.ktx2VramBytes ?? t.vramBytes) }));
-        })),
-      h('span', { class: 'hint muted', textContent: `${d1 ? 'What one device downloads at each tier (bundle files minus the page copy it skips)' : 'Atlas pages per tier'}. The bundle holds both an image and a KTX2 copy of each page; a device reads one. GPU: as RGBA without KTX2; GPU KTX2: block-compressed where pages have KTX2. Raw JSON skeletons keep their own pages at 1x.` }),
-    );
+    body.append(h('div', { class: 'muted', textContent: `${r.date ? new Date(r.date).toLocaleString() : ''} · ${compressed}/${list.length} skeletons compressed · ${r.mode}, ${r.format === 'tbla' ? '.tbla bundles' : 'loose files'}` }));
+    if (r.downloads) body.append(renderDownloads(r, r.downloads));
+    else body.append(h('span', { class: 'muted', textContent: 'Export again to see what a device downloads (this report is from an older version).' }));
+    body.append(h('div', { class: 'muted', textContent: `On disk: ${kib(r.outputBytes)} (every tier and page format) · source ${kib(r.sourceBytes)}` }));
     if (r.bundles?.length) {
-      body.append(h('div', {}, h('strong', { textContent: `${r.mode === 'development' ? 'Development' : 'Release'} bundles` }),
-        h('div', { class: 'files', textContent: r.bundles.map((b) => `${kib(b.bytes).padStart(9)}  ${b.path}  (${b.files} files${b.language ? `, ${b.language}` : ''})`).join('\n') })));
+      const kindLabel: Record<string, string> = { data: 'data', ktx2: 'KTX2 pages', images: 'image pages', asset: 'asset' };
+      body.append(h('details', { class: 'bundles' },
+        h('summary', { textContent: `${r.bundles.length} ${r.mode === 'development' ? 'development' : 'release'} bundles` }),
+        h('div', { class: 'bundle-list' }, h('table', {}, ...r.bundles.map((b) => h('tr', {},
+          h('td', { class: 'path', textContent: b.path, title: `${b.path}: ${b.files} files${b.language ? `, ${b.language}` : ''}` }),
+          h('td', { class: 'muted', textContent: b.language ? `fonts ${b.language}` : kindLabel[b.kind] ?? '' }),
+          h('td', { textContent: kib(b.bytes) })))))));
     }
     if (r.conflicts?.length) body.append(h('div', {}, h('strong', { textContent: 'Pages shared by load groups' }), h('ul', {}, ...r.conflicts.map((c) => h('li', { class: 'warn-line', textContent: c })))));
     if (failed.length) body.append(h('div', {}, h('strong', { textContent: 'Exported as JSON instead' }), h('ul', {}, ...failed.map(([n, s]) => h('li', { textContent: `${n}: ${s.reason}` })))));
     if (r.warnings.length) body.append(h('div', {}, h('strong', { textContent: 'Warnings' }), h('ul', {}, ...r.warnings.map((w) => h('li', { textContent: w })))));
   }
   $('report').replaceChildren(h('h2', {}, 'Last export'), body);
+}
+
+/**
+ * What one device downloads per tier (every load group, measured on the export's files) and the GPU memory of
+ * those pages, with and without KTX2 support.
+ */
+function renderDownloads(r: Report, d: NonNullable<Report['downloads']>): HTMLElement {
+  const hasKtx2 = d.tiers.some((t) => t.ktx2 !== null);
+  const gpu = new Map(r.tiers.map((t) => [t.tier, t]));
+  const row = (label: string, ...values: string[]): HTMLElement => h('tr', {}, h('td', { textContent: label }), ...values.map((v) => h('td', { textContent: v })));
+  const tiers = d.tiers.map((t) => {
+    const g = gpu.get(t.tier);
+    const vram = g?.vramBytes;
+    const vramKtx2 = g?.ktx2VramBytes;
+    const pct = (n: number | undefined, of: number | undefined): string => (n && of && n !== of ? ` (${Math.round((n / of) * 100)}%)` : '');
+    return h('table', { class: 'tier' },
+      h('tr', {}, h('th', { textContent: `Tier ${t.tier}x` }), ...(hasKtx2 ? [h('th', { textContent: 'KTX2 device' }), h('th', { textContent: 'Other device' })] : [h('th', { textContent: 'Device' })])),
+      row('Download', ...(hasKtx2 ? [t.ktx2 === null ? '–' : kib(t.ktx2), kib(t.images)] : [kib(t.images)])),
+      row('GPU memory', ...(hasKtx2 ? [vramKtx2 === undefined ? '–' : `${kib(vramKtx2)}${pct(vramKtx2, vram)}`, vram === undefined ? '–' : kib(vram)] : [vram === undefined ? '–' : kib(vram)])));
+  });
+  const languages = Object.entries(d.languages);
+  const pages = r.pages ?? [];
+  const sizes = new Map<string, number>();
+  for (const p of pages) sizes.set(`${p.width}×${p.height}`, (sizes.get(`${p.width}×${p.height}`) ?? 0) + 1);
+  const ktx2Pages = pages.filter((p) => p.ktx2).length;
+  const skeletons = Object.values(r.skeletons);
+  const compressed = skeletons.filter((s) => s.format === 'tabula').length;
+  return h('div', { class: 'downloads' },
+    h('strong', { textContent: 'One device, every load group' }),
+    ...tiers,
+    languages.length ? h('div', { class: 'muted small', textContent: `Download plus the fonts of its language: ${languages.map(([l, n]) => `${l} ${kib(n)}`).join(' · ')}` }) : null,
+    hasKtx2 ? h('div', { class: 'note', textContent: 'Trade-off: a KTX2 device downloads more but its pages stay block-compressed on the GPU (about 4× less memory); other devices download less and decode pages to RGBA.' }) : null,
+    h('table', { class: 'facts' },
+      pages.length ? row('Pages', `${pages.length} at 1x: ${[...sizes].map(([s, n]) => `${n > 1 ? `${n} × ` : ''}${s}`).join(', ')}${hasKtx2 ? ` · ${ktx2Pages} with KTX2` : ''}`) : null,
+      row('Skeletons', `${compressed}/${skeletons.length} compressed${r.data ? ` · ${r.data.baked} baked` : ''}`),
+      r.data ? row('Skeleton data', `${kib(r.data.tabulaBytes + r.data.bakedBytes)} in memory while loaded (.tabula ${kib(r.data.tabulaBytes)}, .baked ${kib(r.data.bakedBytes)})`) : null,
+      row('CPU', `${r.data?.baked ? 'Baked animations play without per-frame bone math. ' : ''}Live draw calls, CPU per frame and FPS: Show → Scene.`)),
+    h('span', { class: 'hint muted', textContent: 'Download: measured on the files written (data plus one page format). GPU memory: every page of that tier loaded, transcoded KTX2 at 1 byte per pixel, images as RGBA (4 bytes per pixel), no mipmaps.' }));
 }
 
 async function runExport(): Promise<void> {

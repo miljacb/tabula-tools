@@ -50,10 +50,10 @@ export interface KtxToolLocation {
 }
 
 /**
- * Project cache directory for the installed tool:
+ * Cache directory for the installed tool:
  * `$TABULA_CACHE_DIR` or `<nearest node_modules>/.cache/tabula`, then
  * `ktx-software/<version>/<platform>-<arch>`.
- * @param from Directory to search upward from for `node_modules` (default: cwd).
+ * @param from Directory to search upward from for `node_modules` (default: this package, see `toolsCacheDir`).
  */
 export function ktxCacheDir(from?: string): string {
   return join(toolsCacheDir(from), 'ktx-software', KTX_SOFTWARE_VERSION, `${process.platform}-${process.arch}`);

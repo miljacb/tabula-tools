@@ -55,20 +55,34 @@ page `tabula app` serves (`dist-app/`).
 
 | | Release (default) | Development |
 |---|---|---|
-| Bundles | One `.tbla` per load group and tier: `game.tbla`, `game@0.5x.tbla` (or `base.tbla`, `bonus.tbla` … with load groups) | One `.tbla` per asset and tier: `symbol1.tbla`, `symbol1@0.5x.tbla` |
+| Bundles | Per load group and tier: `game.tbla` (data, and pages without a KTX2 copy), `game.ktx2.tbla` (KTX2 pages), `game.images.tbla` (the image copies of those pages); `game@0.5x.tbla` … per tier; `base…`, `bonus…` with load groups. Without KTX2 one bundle per group and tier. | One `.tbla` per asset and tier: `symbol1.tbla`, `symbol1@0.5x.tbla` |
 | Pages | Skeletons of a page set share repacked atlas pages (fewest draw calls) | Each skeleton has its own pages |
 | Use | Shipping | Swapping or sending one asset at a time; each bundle has its manifest inside, so it opens on its own |
 
 `format: "files"` writes loose files instead (inspect, debug).
 
-A `.tbla` holds the files of an export by path, each with a CRC-32:
-skeletons and data first, KTX2 pages next, PNG pages last. Each tier is
-its own file, so a device downloads one tier. The manager reads a bundle as
-it streams in; once a group is loaded it stops the download, so with KTX2
-working the PNG fallbacks at the end are never fetched (a file needed later
-comes by HTTP range request). Language font variants go into their own
-bundle (`fonts.ka.tbla`), loaded with the language. `tabula inspect x.tbla`
-lists a bundle (checksums checked); `--unpack <dir>` writes its files.
+A `.tbla` holds the files of an export by path, each with a CRC-32: the
+embedded manifest (development bundles) first, skeletons and data next,
+KTX2 pages next, PNG pages last; within each, in the order the load group
+lists its assets. Data files (`.tabula`, `.baked`, JSON) are stored
+deflated where that saves 10% or more (format version 2; read with
+`DecompressionStream`, every current browser, Safari from 16.4); pages and
+images are stored as they are, so HTTP compression of `.tbla` gains
+little.
+
+Each tier is its own set of files, so a device downloads one tier. Release
+bundles are split by page format: a device with KTX2 support reads the data
+and KTX2 bundles, any other device the data and image bundles, so neither
+downloads the copy it does not use. An image goes into the image bundle
+only when the KTX2 copy of the same page and tier exists; images every
+device needs stay in the data bundle. The manager reads a bundle as it
+streams in and stops the download once the group is loaded (a file needed
+later, e.g. a PNG fallback for a page whose KTX2 failed, comes by HTTP
+range request). The app's report shows what one device downloads per tier,
+with and without KTX2, measured on the bundles written. Language font
+variants go into their own bundle (`fonts.ka.tbla`), loaded with the
+language. `tabula inspect x.tbla` lists a bundle (checksums checked,
+deflated sizes shown); `--unpack <dir>` writes its files, unpacked.
 
 The game code is the same for every mode and format:
 `TabulaAssetManager.load('assets.manifest.json')`, then assets by name.
@@ -98,6 +112,10 @@ broke), GPU memory, CPU per frame, pages, triangles, FPS. **Weak device**
 ## Export settings (`tabula.config.json`)
 
 The app saves its settings in the project folder; every field is optional.
+This file and the export folder (`tabula-export/`) are all Tabula adds to a
+project. Keep the file with the project (commit it, send it along): it is
+how the next export, or someone else's, uses the same settings. It is only
+written once a setting is changed.
 
 ```json
 {
@@ -117,7 +135,7 @@ The app saves its settings in the project folder; every field is optional.
 | Field | Default | Meaning |
 |---|---|---|
 | `tiers` | `[1]` | Resolution tiers of the atlas pages and sprite sheets. Below 1: downscaled. Above 1: from `<name>@2x` exports, never upscaled ([tiers above 1](../../tabula-pixi/docs/api/textures-ktx2.md#tiers-above-1)). |
-| `ktx2` | `none` | `uastc` (quality) or `etc1s` (small) KTX2 pages; per group or page in `atlas.groups`. |
+| `ktx2` | `none` | `uastc` (quality) or `etc1s` (small) KTX2 pages; per group or page in `atlas.groups`. Trade-off: KTX2 devices download more (test assets, 1x: 10.9 MB vs 7.3 MB) but use about 4× less GPU memory (22 MB vs 89 MB). |
 | `atlas` | one group | Packing and co-draw groups: skeletons drawn together share pages (fewer draw calls). |
 | `bake` | on | Baked animations (`.baked`); `false` plays everything live. |
 | `loadGroups` | everything in `base` | The manifest's load groups. |
@@ -142,8 +160,11 @@ The app saves its settings in the project folder; every field is optional.
 **Nothing is reused from earlier exports.** The export empties its folder
 first (only a folder with `.tabula-export`; any other non-empty folder is
 refused), so the game only loads what this export wrote. Only KTX2
-encodings are cached, by content hash, in `<project>/.tabula-cache/`
-(encoding takes seconds per page).
+encodings are cached, by content hash, in the tools cache
+(`node_modules/.cache/tabula/ktx2` of the tools, the desktop app's user
+data folder, or `$TABULA_CACHE_DIR`), never in the project (encoding takes
+seconds per page). A `.tabula-cache/` folder left in a project by older
+versions can be deleted.
 
 **When compression fails** for a skeleton (validation errors, a missing
 `@2x` export, a repack error), it is exported raw and the app says why. The
@@ -187,5 +208,8 @@ const report = await exportProject({
 ```
 
 `report`: `skeletons` (per name: `format`, `reason`, `group`, `warnings`,
-`bytes`, `sourceBytes`), `sprites`, `fonts`, `tiers` (cost per tier),
+`bytes`, `sourceBytes`), `sprites`, `fonts`, `bundles` (path, tier, group,
+`kind`: data / ktx2 / images / asset, size), `tiers` (page download and GPU
+memory per tier), `downloads` (what one device downloads per tier, with and
+without KTX2, measured on the files written; font variants per language),
 `warnings`, `sourceBytes`, `outputBytes`, `ms`, and the `manifest`.
