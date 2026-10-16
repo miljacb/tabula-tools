@@ -5,11 +5,11 @@
 
 import { readFile, writeFile } from 'node:fs/promises';
 import { basename } from 'node:path';
-import { SpineJsonParser } from 'tabula-pixi/core/adapters/spine-json-parser.js';
-import { validateSkeleton } from 'tabula-pixi/core/validate.js';
+import { SpineJsonParser } from '../../core/adapters/spine-json-parser.js';
+import { validateSkeleton } from '../../core/validate.js';
 import { collectSkeletonFiles, loadAtlasNextTo } from '../../export/sources.js';
-import { BlendMode } from 'tabula-pixi/core/types.js';
-import type { SkeletonData } from 'tabula-pixi/core/types.js';
+import { BlendMode } from '../../core/types.js';
+import type { SkeletonData } from '../../core/types.js';
 
 /** Feature counts for one skeleton (or totals across files). */
 export interface FeatureUsage {

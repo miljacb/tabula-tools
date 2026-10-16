@@ -6,15 +6,15 @@
 
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
-import { AtlasParser } from 'tabula-pixi/core/adapters/atlas-parser.js';
+import { AtlasParser } from '../core/adapters/atlas-parser.js';
 import type { RepackGroupSpec, RepackedGroup } from './pack/repack.js';
 import { premultiply, resizeArea, unpremultiply } from './pack/image.js';
 import type { RgbaImage } from './pack/image.js';
 import { encodeKtx2 } from './pack/ktx2.js';
 import type { Ktx2EncodeOptions } from './pack/ktx2.js';
-import type { AtlasData, AtlasPage } from 'tabula-pixi/core/types.js';
-import { tierFileName, tierSize } from 'tabula-pixi/core/texture-formats.js';
-import type { BasisCodec, TextureManifest } from 'tabula-pixi/core/texture-formats.js';
+import type { AtlasData, AtlasPage } from '../core/types.js';
+import { tierFileName, tierSize } from '../core/texture-formats.js';
+import type { BasisCodec, TextureManifest } from '../core/texture-formats.js';
 
 /** Page image encodings. */
 export type PageImageFormat = 'png' | 'webp' | 'webp-lossless';

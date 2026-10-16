@@ -6,13 +6,13 @@
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { AtlasParser } from 'tabula-pixi/core/adapters/atlas-parser.js';
-import { compileSkeleton } from 'tabula-pixi/core/slb-writer.js';
-import { bakeToBuffer } from 'tabula-pixi/core/bake-report.js';
+import { AtlasParser } from '../../core/adapters/atlas-parser.js';
+import { compileSkeleton } from '../../core/slb-writer.js';
+import { bakeToBuffer } from '../../core/bake-report.js';
 import { loadValidatedSkeleton } from '../../export/compile.js';
 import { collectSkeletonFiles, loadAtlasNextTo } from '../../export/sources.js';
 import { printBakeSummary } from './bake.js';
-import { DEFAULT_BAKE_MAX_ERROR } from 'tabula-pixi/core/baked-format.js';
+import { DEFAULT_BAKE_MAX_ERROR } from '../../core/baked-format.js';
 
 /** Options for {@link compileCommand}. */
 export interface CompileCommandOptions {

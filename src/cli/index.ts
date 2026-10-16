@@ -22,15 +22,15 @@ import { collectSkeletonFiles, loadAtlasNextTo } from '../export/sources.js';
 import { bakeCommand } from './commands/bake.js';
 import { repackCommand } from './commands/repack.js';
 import type { PageImageFormat } from '../export/pages.js';
-import type { BasisCodec } from 'tabula-pixi/core/texture-formats.js';
+import type { BasisCodec } from '../core/texture-formats.js';
 import { compileCommand } from './commands/compile.js';
 import { manifestCommand } from './commands/manifest.js';
 import { FONT_USAGE, fontCommand } from './commands/font.js';
 import { installKtxTool, ktxCacheDir, ktxVersionSync, resolveKtxTool, KTX_SOFTWARE_VERSION } from '../export/pack/ktx-tool.js';
-import { SpineJsonParser } from 'tabula-pixi/core/adapters/spine-json-parser.js';
+import { SpineJsonParser } from '../core/adapters/spine-json-parser.js';
 import { appCommand } from './app/command.js';
 import { inspectCommand } from './commands/inspect.js';
-import { validateSkeleton } from 'tabula-pixi/core/validate.js';
+import { validateSkeleton } from '../core/validate.js';
 import { setKtxInstallLog } from '../export/pack/ktx2.js';
 
 const USAGE = `Tabula - lean Spine runtime build tool

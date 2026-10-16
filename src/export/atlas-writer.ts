@@ -1,6 +1,6 @@
 /** Writes {@link AtlasData} as Spine 4.x `.atlas` text (the inverse of AtlasParser). */
 
-import type { AtlasData, AtlasPage, AtlasRegion } from 'tabula-pixi/core/types.js';
+import type { AtlasData, AtlasPage, AtlasRegion } from '../core/types.js';
 
 /** Atlas text for `atlas`: pages in order, each followed by its regions in map order. */
 export function writeAtlasText(atlas: AtlasData): string {

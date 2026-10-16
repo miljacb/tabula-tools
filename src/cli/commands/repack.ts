@@ -7,19 +7,19 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { collectSkeletonFiles, loadAtlasNextTo } from '../../export/sources.js';
-import { compileSkeleton } from 'tabula-pixi/core/slb-writer.js';
-import { bakeToBuffer } from 'tabula-pixi/core/bake-report.js';
+import { compileSkeleton } from '../../core/slb-writer.js';
+import { bakeToBuffer } from '../../core/bake-report.js';
 import { loadValidatedSkeleton } from '../../export/compile.js';
 import { encodeGroupPages, ktx2Selector, loadHiResAtlases, loadPageImage, manifestFileName } from '../../export/pages.js';
 import type { PageImageFormat, RepackGroupsFile } from '../../export/pages.js';
 import { writeAtlasText } from '../../export/atlas-writer.js';
 import { renderTierPages, repackAtlases } from '../../export/pack/repack.js';
 import type { RepackSkeleton } from '../../export/pack/repack.js';
-import { DEFAULT_BAKE_MAX_ERROR } from 'tabula-pixi/core/baked-format.js';
+import { DEFAULT_BAKE_MAX_ERROR } from '../../core/baked-format.js';
 import { groupReport } from '../../export/repack-report.js';
 import type { RepackGroupReport } from '../../export/repack-report.js';
-import { tierFileName, tierSize } from 'tabula-pixi/core/texture-formats.js';
-import type { BasisCodec } from 'tabula-pixi/core/texture-formats.js';
+import { tierFileName, tierSize } from '../../core/texture-formats.js';
+import type { BasisCodec } from '../../core/texture-formats.js';
 import { printBakeSummary } from './bake.js';
 import { printWarning } from './compile.js';
 

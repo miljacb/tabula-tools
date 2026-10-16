@@ -2,9 +2,9 @@
 
 import { stat } from 'node:fs/promises';
 import type { RepackedGroup } from './pack/repack.js';
-import type { AtlasPage } from 'tabula-pixi/core/types.js';
-import { tierSize, transcodedBytes } from 'tabula-pixi/core/texture-formats.js';
-import type { BasisCodec, TextureManifest } from 'tabula-pixi/core/texture-formats.js';
+import type { AtlasPage } from '../core/types.js';
+import { tierSize, transcodedBytes } from '../core/texture-formats.js';
+import type { BasisCodec, TextureManifest } from '../core/texture-formats.js';
 
 /** Summary of one group, as written to repack-report.json. */
 export interface RepackGroupReport {

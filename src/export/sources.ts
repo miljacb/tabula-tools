@@ -2,9 +2,9 @@
 
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
-import { AtlasParser } from 'tabula-pixi/core/adapters/atlas-parser.js';
-import { isSpineJson } from 'tabula-pixi/core/manifest.js';
-import type { AtlasData } from 'tabula-pixi/core/types.js';
+import { AtlasParser } from '../core/adapters/atlas-parser.js';
+import { isSpineJson } from '../core/manifest.js';
+import type { AtlasData } from '../core/types.js';
 
 /** A higher-resolution export for a tier above 1: `<name>@<tier>x.json` / `.atlas`. */
 export function isTierExport(path: string): boolean {

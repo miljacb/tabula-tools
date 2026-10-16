@@ -12,14 +12,23 @@ desktop/      Electron shell
 ```
 
 The engine never prints or exits: results, events and warnings go back to
-the caller, so a host app (an editor) can embed it. It reaches the runtime
-only through `tabula-pixi/core/*`.
+the caller, so a host app (an editor) can embed it. The engine does not need
+tabula-pixi: the runtime modules it uses (parsers, compile, bake, manifest,
+`.tbla`, texture formats) are vendored in `src/core/`, copied from
+tabula-pixi's `src/core/`. Open issue: this copy must be kept in sync with tabula-pixi by hand until a
+shared package replaces it (see [docs/embedding.md](docs/embedding.md#known-gaps)).
+`tests/core-sync.test.ts` fails when a copy differs
+from its source, so update both places together (or re-copy from tabula-pixi).
+
+How to recreate the export in another app (the logic, step by step):
+[docs/embedding.md](docs/embedding.md).
 
 ## Development
 
-Expects `tabula-pixi` checked out next to this folder (linked as
-`file:../tabula-pixi`; build it first). The dependency goes one way only:
-tabula-pixi never imports these tools.
+The engine builds without tabula-pixi. Tests, the app, the demo scripts and
+the Basis transcoder used by `tabula app` still use a tabula-pixi checkout next
+to this folder (linked as `file:../tabula-pixi`; build it first). tabula-pixi
+never imports these tools.
 
 ```sh
 npm install

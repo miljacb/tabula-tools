@@ -17,11 +17,11 @@ import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
-import { SpineJsonParser } from 'tabula-pixi/core/adapters/spine-json-parser.js';
-import { AtlasParser } from 'tabula-pixi/core/adapters/atlas-parser.js';
-import { validateSkeleton } from 'tabula-pixi/core/validate.js';
-import { compileSkeleton } from 'tabula-pixi/core/slb-writer.js';
-import { bakeToBuffer } from 'tabula-pixi/core/bake-report.js';
+import { SpineJsonParser } from '../core/adapters/spine-json-parser.js';
+import { AtlasParser } from '../core/adapters/atlas-parser.js';
+import { validateSkeleton } from '../core/validate.js';
+import { compileSkeleton } from '../core/slb-writer.js';
+import { bakeToBuffer } from '../core/bake-report.js';
 import { isTierExport } from './sources.js';
 import {
   decodeImage, encodeGroupPages, ktx2Selector, loadHiResAtlases, loadPageImage, manifestFileName,
@@ -34,12 +34,12 @@ import { blit, createImage, premultiply, resizeArea, unpremultiply } from './pac
 import type { RgbaImage } from './pack/image.js';
 import { checkKtxTool, encodeKtx2 } from './pack/ktx2.js';
 import type { Ktx2EncodeOptions } from './pack/ktx2.js';
-import { availableTiers, buildAssetManifest, contentHash, globToRegExp, isSpineJson } from 'tabula-pixi/core/manifest.js';
-import type { AssetManifest, ManifestBundle, ManifestExtras, ManifestGroup, ManifestInputFile, TierCost } from 'tabula-pixi/core/manifest.js';
-import { type BundleFile, writeBundle } from 'tabula-pixi/core/tbla.js';
-import { resolveTier, tierFileName, tierSize } from 'tabula-pixi/core/texture-formats.js';
-import type { BasisCodec, TextureManifest } from 'tabula-pixi/core/texture-formats.js';
-import type { AtlasPage } from 'tabula-pixi/core/types.js';
+import { availableTiers, buildAssetManifest, contentHash, globToRegExp, isSpineJson } from '../core/manifest.js';
+import type { AssetManifest, ManifestBundle, ManifestExtras, ManifestGroup, ManifestInputFile, TierCost } from '../core/manifest.js';
+import { type BundleFile, writeBundle } from '../core/tbla.js';
+import { resolveTier, tierFileName, tierSize } from '../core/texture-formats.js';
+import type { BasisCodec, TextureManifest } from '../core/texture-formats.js';
+import type { AtlasPage } from '../core/types.js';
 import type { TabulaProjectConfig } from './config.js';
 import { toolsCacheDir } from './cache-dir.js';
 

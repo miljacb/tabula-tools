@@ -6,8 +6,8 @@
 
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { BasisCodec } from 'tabula-pixi/core/texture-formats.js';
-import type { LoadGroupsSpec } from 'tabula-pixi/core/manifest.js';
+import type { BasisCodec } from '../core/texture-formats.js';
+import type { LoadGroupsSpec } from '../core/manifest.js';
 import type { PageImageFormat, RepackGroupsFile } from './pages.js';
 
 /** File name of the project settings, in the source folder. */

@@ -7,8 +7,8 @@
  * kept, so attachments map exactly as before.
  */
 
-import type { AtlasData, AtlasPage, AtlasRegion, SkeletonData } from 'tabula-pixi/core/types.js';
-import { regionPathsOf } from 'tabula-pixi/core/regions.js';
+import type { AtlasData, AtlasPage, AtlasRegion, SkeletonData } from '../../core/types.js';
+import { regionPathsOf } from '../../core/regions.js';
 import { packPages } from './maxrects.js';
 import { blit, createImage, premultiply, readRegion, resizeArea, rotateForStorage, unpremultiply } from './image.js';
 import type { RgbaImage } from './image.js';

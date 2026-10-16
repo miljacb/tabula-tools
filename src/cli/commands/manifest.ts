@@ -7,8 +7,8 @@
 
 import { readFile, readdir, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import { buildAssetManifest } from 'tabula-pixi/core/manifest.js';
-import type { AssetManifest, LoadGroupsSpec, ManifestInputFile } from 'tabula-pixi/core/manifest.js';
+import { buildAssetManifest } from '../../core/manifest.js';
+import type { AssetManifest, LoadGroupsSpec, ManifestInputFile } from '../../core/manifest.js';
 
 /** Options for {@link manifestCommand}. */
 export interface ManifestCommandOptions {
