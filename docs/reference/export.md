@@ -355,7 +355,7 @@ Result of {@link exportProject}.
 | `tiers: TierCost[]` | Download and GPU memory per tier, all pages. |
 | `downloads: DeviceDownloads` | What one device downloads (see {@link DeviceDownloads}). |
 | `pages: { name: string; width: number; height: number; ktx2: boolean; }[]` | Atlas and image pages at 1× (sizes scale with the tier). |
-| `data: { tabulaBytes: number; bakedBytes: number; baked: number; }` | Compressed skeleton data: `.tabula` and `.baked` bytes (kept in memory while loaded) and how many are baked. |
+| `data: { tabulaBytes: number; bakedBytes: number; baked: number; }` | Compressed skeleton data: `.tbin` and `.baked` bytes (kept in memory while loaded) and how many are baked. |
 | `warnings: string[]` |  |
 | `sourceBytes: number` | Bytes of the raw exports (skeletons with their pages, sprite sheets, fonts). |
 | `outputBytes: number` | Bytes written. |
@@ -429,7 +429,7 @@ What one skeleton became.
 
 | Member | Description |
 |---|---|
-| `format: 'tabula' \| 'json'` |  |
+| `format: 'tbin' \| 'json'` |  |
 | `reason?: string` | Why it is raw: not selected, or the reason compression failed. |
 | `group?: string` | Co-draw group (compressed skeletons). |
 | `warnings: string[]` | Validation warnings (supported but costly or ignored content). |
@@ -493,7 +493,7 @@ Load `<name>.atlas` next to a skeleton JSON, if present.
 declare function compileSkeleton(data: SkeletonData, atlas: AtlasData | null): ArrayBuffer
 ```
 
-Compile `data` to `.tabula` bytes, embedding the regions of `atlas` it uses.
+Compile `data` to `.tbin` bytes, embedding the regions of `atlas` it uses.
 
 ## `src/export/pages.ts`
 

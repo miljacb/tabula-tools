@@ -316,7 +316,7 @@ function fit(view: ClipView, b: Rectangle, x: number, y: number, w: number, hgt:
 function exportState(name: string): { cls: string; text: string; title: string } {
   const r = (project.report as Report | null)?.skeletons?.[name];
   if (!r) return { cls: 'raw', text: 'not exported', title: 'Not in the last export' };
-  if (r.format === 'tabula') return { cls: 'ok', text: 'compressed', title: `Compressed in group "${r.group}"` };
+  if (r.format === 'tbin') return { cls: 'ok', text: 'compressed', title: `Compressed in group "${r.group}"` };
   if (r.reason === 'not selected for compression') return { cls: 'raw', text: 'raw', title: 'Exported as JSON (not selected for compression)' };
   return { cls: 'bad', text: 'raw: failed', title: `Compression failed, exported as JSON: ${r.reason}` };
 }
@@ -398,7 +398,7 @@ function renderDetails(): void {
   }
   const r = (project.report as Report | null)?.skeletons?.[s.name];
   const exported = !r ? 'Not in the last export.'
-    : r.format === 'tabula' ? `Compressed: ${kib(r.bytes)} (.tabula and .baked) instead of ${kib(r.sourceBytes)} JSON + atlas; pages shared in group "${r.group}".`
+    : r.format === 'tbin' ? `Compressed: ${kib(r.bytes)} (.tbin and .baked) instead of ${kib(r.sourceBytes)} JSON + atlas; pages shared in group "${r.group}".`
     : `Exported as raw JSON${r.reason ? `: ${r.reason}` : ''}.`;
   const groupSel = assignSelect(loadGroupNames(), loadGroupsOf(s.name)[0]!, 'group', (v) => assignGroup(s.name, v));
   d.replaceChildren(
@@ -626,7 +626,7 @@ function renderReport(log?: HTMLElement): void {
   if (!r) body.append(h('span', { class: 'muted', textContent: 'No export yet. Check the skeletons to compress and press Export.' }));
   else {
     const list = Object.values(r.skeletons);
-    const compressed = list.filter((s) => s.format === 'tabula').length;
+    const compressed = list.filter((s) => s.format === 'tbin').length;
     const failed = Object.entries(r.skeletons).filter(([, s]) => s.format === 'json' && s.reason !== 'not selected for compression');
     body.append(h('div', { class: 'muted', textContent: `${r.date ? new Date(r.date).toLocaleString() : ''} · ${compressed}/${list.length} skeletons compressed · ${r.mode}, ${r.format === 'tbla' ? '.tbla bundles' : 'loose files'}` }));
     if (r.downloads) body.append(renderDownloads(r, r.downloads));
@@ -672,7 +672,7 @@ function renderDownloads(r: Report, d: NonNullable<Report['downloads']>): HTMLEl
   for (const p of pages) sizes.set(`${p.width}×${p.height}`, (sizes.get(`${p.width}×${p.height}`) ?? 0) + 1);
   const ktx2Pages = pages.filter((p) => p.ktx2).length;
   const skeletons = Object.values(r.skeletons);
-  const compressed = skeletons.filter((s) => s.format === 'tabula').length;
+  const compressed = skeletons.filter((s) => s.format === 'tbin').length;
   return h('div', { class: 'downloads' },
     h('strong', { textContent: 'One device, every load group' }),
     ...tiers,
@@ -681,7 +681,7 @@ function renderDownloads(r: Report, d: NonNullable<Report['downloads']>): HTMLEl
     h('table', { class: 'facts' },
       pages.length ? row('Pages', `${pages.length} at 1x: ${[...sizes].map(([s, n]) => `${n > 1 ? `${n} × ` : ''}${s}`).join(', ')}${hasKtx2 ? ` · ${ktx2Pages} with KTX2` : ''}`) : null,
       row('Skeletons', `${compressed}/${skeletons.length} compressed${r.data ? ` · ${r.data.baked} baked` : ''}`),
-      r.data ? row('Skeleton data', `${kib(r.data.tabulaBytes + r.data.bakedBytes)} in memory while loaded (.tabula ${kib(r.data.tabulaBytes)}, .baked ${kib(r.data.bakedBytes)})`) : null,
+      r.data ? row('Skeleton data', `${kib(r.data.tabulaBytes + r.data.bakedBytes)} in memory while loaded (.tbin ${kib(r.data.tabulaBytes)}, .baked ${kib(r.data.bakedBytes)})`) : null,
       row('CPU', `${r.data?.baked ? 'Baked animations play without per-frame bone math. ' : ''}Live draw calls, CPU per frame and FPS: Show → Scene.`)),
     h('span', { class: 'hint muted', textContent: 'Download: measured on the files written (data plus one page format). GPU memory: every page of that tier loaded, transcoded KTX2 at 1 byte per pixel, images as RGBA (4 bytes per pixel), no mipmaps.' }));
 }

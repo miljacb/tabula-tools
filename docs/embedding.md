@@ -4,7 +4,7 @@ Written for: engineers who will run or port the Tabula export inside their own t
 
 This is the logic of the export, not the UI. The engine is `exportProject` in
 [src/export/export-project.ts](../src/export/export-project.ts). Everything it
-needs is in `src/export/` and `src/core/`, so an app can call it directly or
+needs is in `src/export/` and the `tabula-pixi` package (`tabula-pixi/core/*`), so an app can call it directly or
 port the steps below.
 
 ## What goes in and out
@@ -26,7 +26,7 @@ port the steps below.
 
 - `assets.manifest.json`: the index the game loads. Lists every file, its
   tiers, load groups and sizes.
-- For each compressed skeleton: `<name>.tabula` (compiled data) and
+- For each compressed skeleton: `<name>.tbin` (compiled data) and
   `<name>.baked` (pre-baked samples, when baking succeeded).
 - For each atlas group: its pages per tier (and KTX2 pages), a
   `<group>.atlas` text file, and a textures manifest.
@@ -114,10 +114,10 @@ writes all of them.
 
 For each skeleton in an encoded group, with its group's atlas:
 
-- **Compile** with `compileSkeleton` ([src/core/slb-writer.ts](../src/core/slb-writer.ts)).
-  This turns the Spine JSON into the `.tabula` binary, referencing regions by
+- **Compile** with `compileSkeleton` (`tabula-pixi/core/slb-writer.js`).
+  This turns the Spine JSON into the `.tbin` binary, referencing regions by
   the repacked atlas. It is the data the runtime loads.
-- **Bake** with `bakeToBuffer` ([src/core/bake-report.ts](../src/core/bake-report.ts)),
+- **Bake** with `bakeToBuffer` (`tabula-pixi/core/bake-report.js`),
   unless `config.bake` is off. Baking pre-computes the animation samples
   within `maxError` (`DEFAULT_BAKE_MAX_ERROR`), so the runtime can play
   without evaluating the curves live. If baking fails, the skeleton still
@@ -139,7 +139,7 @@ Each sprite sheet and image gets its own pages, encoded like atlas pages
 
 ### 8. Build the manifest
 
-`buildAssetManifest` ([src/core/manifest.ts](../src/core/manifest.ts)) runs
+`buildAssetManifest` (`tabula-pixi/core/manifest.js`) runs
 over exactly the files written. It records:
 
 - every file, its size and content hash,
@@ -158,13 +158,13 @@ conflicts, so review them.
 load group and tier, with the manifest embedded so each bundle can be read on
 its own.
 
-- Bundles are split by kind: data (`.tabula`, `.baked`, JSON) first, KTX2
+- Bundles are split by kind: data (`.tbin`, `.baked`, JSON) first, KTX2
   pages next, image copies last. A device that supports KTX2 never downloads
   the image copies.
 - Data files may be deflated (`.tbla` version 2). Pages are not, because they
   are compressed already.
 
-The format is documented at the top of [src/core/tbla.ts](../src/core/tbla.ts).
+The format is documented at the top of tabula-pixi's `src/core/tbla.ts`.
 `writeBundle` writes it; `readBundle` reads it back for checks.
 
 Development mode skips the bundling and writes one `.tbla` per asset and tier
@@ -197,9 +197,8 @@ To run the same export in another app, you need:
 
 1. **Node** (the engine uses `node:fs` and `sharp`). A browser or a non-Node
    runtime cannot run it as is.
-2. **The engine** (`src/export/`) and the vendored runtime modules (`src/core/`).
-   The copies are the same as tabula-pixi's source; `tests/core-sync.test.ts`
-   checks that.
+2. **The engine** (`src/export/`) and the `tabula-pixi` package it imports
+   the runtime modules from (`tabula-pixi/core/*`).
 3. **The `ktx` tool**, if KTX2 is used: `tabula ktx-tool --install`, or
    `TABULA_KTX` pointing at your binary. Or pass your own `encodeKtx2`
    (the option returns `null` to keep a page as an image).
@@ -228,13 +227,6 @@ Each step is a function you can call alone: `discoverProject`,
 `buildAssetManifest`, `packBundles`, `writeBundle`.
 
 ## Known gaps
-
-**Open, to track until solved:** the modules in `src/core/` are a copy of
-tabula-pixi's `src/core/`, not a shared package. Until that is solved, every
-change to one must be made in the other too. `tests/core-sync.test.ts` fails
-when they differ, and that test is skipped when the tabula-pixi checkout is
-not next to this folder, so check it in both repos. The fix is a shared
-package both depend on (see the core-sharing options in the handover notes).
 
 - `tabula app` (the `app` command and desktop shell) still loads the Basis
   transcoder from a tabula-pixi checkout. The export itself does not.

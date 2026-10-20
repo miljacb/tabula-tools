@@ -1,14 +1,14 @@
 /**
  * `tabula manifest`: build `assets.manifest.json` (see core/manifest.ts)
- * from build outputs: `.tabula`, `.baked`, page images and KTX2 tiers,
+ * from build outputs: `.tbin`, `.baked`, page images and KTX2 tiers,
  * `*.textures.json`, sprite sheets, `*.font.json` SDF fonts. Paths in the manifest are relative to
  * the manifest file.
  */
 
 import { readFile, readdir, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import { buildAssetManifest } from '../../core/manifest.js';
-import type { AssetManifest, LoadGroupsSpec, ManifestInputFile } from '../../core/manifest.js';
+import { buildAssetManifest } from 'tabula-pixi/core/manifest.js';
+import type { AssetManifest, LoadGroupsSpec, ManifestInputFile } from 'tabula-pixi/core/manifest.js';
 
 /** Options for {@link manifestCommand}. */
 export interface ManifestCommandOptions {
@@ -20,7 +20,7 @@ export interface ManifestCommandOptions {
   quiet?: boolean;
 }
 
-const EXTENSIONS = /\.(tabula|baked|png|webp|jpe?g|avif|ktx2|json|atlas)$/i;
+const EXTENSIONS = /\.(tbin|baked|png|webp|jpe?g|avif|ktx2|json|atlas)$/i;
 
 async function walk(dir: string): Promise<string[]> {
   const out: string[] = [];

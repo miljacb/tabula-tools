@@ -17,8 +17,8 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { KHR_DF_FLAG_ALPHA_PREMULTIPLIED, parseKtx2Header } from '../../core/texture-formats.js';
-import type { BasisCodec } from '../../core/texture-formats.js';
+import { KHR_DF_FLAG_ALPHA_PREMULTIPLIED, parseKtx2Header } from 'tabula-pixi/core/texture-formats.js';
+import type { BasisCodec } from 'tabula-pixi/core/texture-formats.js';
 import type { RgbaImage } from './image.js';
 import { installKtxTool, ktxVersionSync, resolveKtxTool } from './ktx-tool.js';
 

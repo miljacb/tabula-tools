@@ -21,9 +21,9 @@ import { existsSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SpineJsonParser } from '../../core/adapters/spine-json-parser.js';
-import { AtlasParser } from '../../core/adapters/atlas-parser.js';
-import { validateSkeleton } from '../../core/validate.js';
+import { SpineJsonParser } from 'tabula-pixi/core/adapters/spine-json-parser.js';
+import { AtlasParser } from 'tabula-pixi/core/adapters/atlas-parser.js';
+import { validateSkeleton } from 'tabula-pixi/core/validate.js';
 import { inspectBundle } from '../commands/inspect.js';
 import { PROJECT_CONFIG_FILE, loadProjectConfig, validateProjectConfig } from '../../export/config.js';
 import { MANIFEST_FILE, REPORT_FILE, discoverProject, exportProject } from '../../export/export-project.js';
@@ -35,7 +35,7 @@ export interface AppServerOptions {
   projectDir?: string;
   /** Export folder of `projectDir` (default `<project>/tabula-export`; other projects always use that). */
   outDir?: string;
-  /** Where the recent projects are kept (default `~/.tabula/recent.json`). */
+  /** Where the recent projects are kept (default `~/.tbin/recent.json`). */
   recentFile?: string;
   /** Folder with basis_transcoder.js / .wasm (default: tabula-pixi's vendor/basis). */
   basisDir?: string;
@@ -106,7 +106,7 @@ const MAX_RECENT = 10;
 /** The request handler of the app (see the module comment). */
 export function createAppHandler(options: AppServerOptions = {}): AppHandler {
   const initial = options.projectDir ? resolve(options.projectDir) : null;
-  const recentFile = options.recentFile ?? join(homedir(), '.tabula', 'recent.json');
+  const recentFile = options.recentFile ?? join(homedir(), '.tbin', 'recent.json');
   const basisDir = options.basisDir ?? findBasisDir();
   let projectDir: string | null = null;
   /** A `.tbla` opened directly: the page selects it. */

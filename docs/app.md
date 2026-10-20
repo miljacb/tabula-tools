@@ -64,7 +64,7 @@ page `tabula app` serves (`dist-app/`).
 A `.tbla` holds the files of an export by path, each with a CRC-32: the
 embedded manifest (development bundles) first, skeletons and data next,
 KTX2 pages next, PNG pages last; within each, in the order the load group
-lists its assets. Data files (`.tabula`, `.baked`, JSON) are stored
+lists its assets. Data files (`.tbin`, `.baked`, JSON) are stored
 deflated where that saves 10% or more (format version 2; read with
 `DecompressionStream`, every current browser, Safari from 16.4); pages and
 images are stored as they are, so HTTP compression of `.tbla` gains
@@ -148,7 +148,7 @@ written once a setting is changed.
 | Path | What |
 |---|---|
 | `assets.manifest.json` | The manifest over exactly the files below. |
-| `<skeleton>.tabula`, `<skeleton>.baked` | Compressed skeletons. |
+| `<skeleton>.tbin`, `<skeleton>.baked` | Compressed skeletons. |
 | `<group>.png`, `<group>@0.5x.png`, `<group>.ktx2`, … , `<group>.textures.json`, `<group>.atlas` | Repacked pages per co-draw group, per tier and format. |
 | `raw/…` | Skeletons exported raw: JSON, atlas and pages as the designer exported them. |
 | `sprites/…` | Sprite sheets, with `@0.5x` tiers (frames scaled, `meta.scale` set so sprites keep their size) and KTX2 pages when `ktx2` is set. |
@@ -175,7 +175,7 @@ used in its place.
 
 - Upload the whole export folder; paths in the manifest are relative to it.
 - Serve `basis_transcoder.js` and `.wasm` from tabula-pixi's `vendor/basis/` (same folder) when the export has KTX2 pages, and pass `transcoder` to the manager.
-- MIME types: `.wasm` → `application/wasm` (required for streaming compilation), `.ktx2` → `image/ktx2`, `.tabula` / `.baked` → `application/octet-stream`.
+- MIME types: `.wasm` → `application/wasm` (required for streaming compilation), `.ktx2` → `image/ktx2`, `.tbin` / `.baked` → `application/octet-stream`.
 - Caching: pass `cacheBust: true` to the manager (URLs get `?v=<content hash>`) and cache files for a long time; serve `assets.manifest.json` with `Cache-Control: no-cache`.
 - Pass `json: spineJson` if any skeleton may be raw.
 - Choose the tier in the game (`tier`, default 1); `availableTiers()` gives the cost of each.
@@ -189,7 +189,7 @@ used in its place.
 | Spine 5.x | Rejected until supported ("not supported yet"). |
 | Spine before 4.1 | Rejected: re-export as 4.1 or 4.2. |
 | Spine binary `.skel` | Not supported: export JSON. |
-| `.tabula`, `.baked` | Versioned; a runtime reads a range of versions and names the problem otherwise ("recompile the skeleton"). |
+| `.tbin`, `.baked` | Versioned; a runtime reads a range of versions and names the problem otherwise ("recompile the skeleton"). |
 | `assets.manifest.json` | Version 1 without raw skeletons (older runtimes read it), 2 with them. |
 
 ## In code

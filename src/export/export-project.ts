@@ -17,11 +17,11 @@ import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
-import { SpineJsonParser } from '../core/adapters/spine-json-parser.js';
-import { AtlasParser } from '../core/adapters/atlas-parser.js';
-import { validateSkeleton } from '../core/validate.js';
-import { compileSkeleton } from '../core/slb-writer.js';
-import { bakeToBuffer } from '../core/bake-report.js';
+import { SpineJsonParser } from 'tabula-pixi/core/adapters/spine-json-parser.js';
+import { AtlasParser } from 'tabula-pixi/core/adapters/atlas-parser.js';
+import { validateSkeleton } from 'tabula-pixi/core/validate.js';
+import { compileSkeleton } from 'tabula-pixi/core/slb-writer.js';
+import { bakeToBuffer } from 'tabula-pixi/core/bake-report.js';
 import { isTierExport } from './sources.js';
 import {
   decodeImage, encodeGroupPages, ktx2Selector, loadHiResAtlases, loadPageImage, manifestFileName,
@@ -34,12 +34,12 @@ import { blit, createImage, premultiply, resizeArea, unpremultiply } from './pac
 import type { RgbaImage } from './pack/image.js';
 import { checkKtxTool, encodeKtx2 } from './pack/ktx2.js';
 import type { Ktx2EncodeOptions } from './pack/ktx2.js';
-import { availableTiers, buildAssetManifest, contentHash, globToRegExp, isSpineJson } from '../core/manifest.js';
-import type { AssetManifest, ManifestBundle, ManifestExtras, ManifestGroup, ManifestInputFile, TierCost } from '../core/manifest.js';
-import { type BundleFile, writeBundle } from '../core/tbla.js';
-import { resolveTier, tierFileName, tierSize } from '../core/texture-formats.js';
-import type { BasisCodec, TextureManifest } from '../core/texture-formats.js';
-import type { AtlasPage } from '../core/types.js';
+import { availableTiers, buildAssetManifest, contentHash, globToRegExp, isSpineJson } from 'tabula-pixi/core/manifest.js';
+import type { AssetManifest, ManifestBundle, ManifestExtras, ManifestGroup, ManifestInputFile, TierCost } from 'tabula-pixi/core/manifest.js';
+import { type BundleFile, writeBundle } from 'tabula-pixi/core/tbla.js';
+import { resolveTier, tierFileName, tierSize } from 'tabula-pixi/core/texture-formats.js';
+import type { BasisCodec, TextureManifest } from 'tabula-pixi/core/texture-formats.js';
+import type { AtlasPage } from 'tabula-pixi/core/types.js';
 import type { TabulaProjectConfig } from './config.js';
 import { toolsCacheDir } from './cache-dir.js';
 
@@ -89,7 +89,7 @@ export interface ExportOptions {
 
 /** What one skeleton became. */
 export interface SkeletonExport {
-  format: 'tabula' | 'json';
+  format: 'tbin' | 'json';
   /** Why it is raw: not selected, or the reason compression failed. */
   reason?: string;
   /** Co-draw group (compressed skeletons). */
@@ -123,7 +123,7 @@ export interface ExportReport {
   downloads: DeviceDownloads;
   /** Atlas and image pages at 1× (sizes scale with the tier). */
   pages: { name: string; width: number; height: number; ktx2: boolean }[];
-  /** Compressed skeleton data: `.tabula` and `.baked` bytes (kept in memory while loaded) and how many are baked. */
+  /** Compressed skeleton data: `.tbin` and `.baked` bytes (kept in memory while loaded) and how many are baked. */
   data: { tabulaBytes: number; bakedBytes: number; baked: number };
   warnings: string[];
   /** Bytes of the raw exports (skeletons with their pages, sprite sheets, fonts). */
@@ -369,9 +369,9 @@ export async function exportProject(options: ExportOptions): Promise<ExportRepor
             warn(`not baked, plays live: ${(err as Error).message}`, data.name);
           }
         }
-        write(`${data.name}.tabula`, tabula);
+        write(`${data.name}.tbin`, tabula);
         if (baked) write(`${data.name}.baked`, baked);
-        Object.assign(entry, { format: 'tabula', group: group.name, bytes: tabula.length + (baked?.length ?? 0) });
+        Object.assign(entry, { format: 'tbin', group: group.name, bytes: tabula.length + (baked?.length ?? 0) });
         delete entry.reason;
       } catch (err) {
         fallback(data.name, `compile failed: ${(err as Error).message}`);
@@ -506,7 +506,7 @@ function pageList(manifest: AssetManifest): ExportReport['pages'] {
 function dataSizes(written: ReadonlyMap<string, Uint8Array>): ExportReport['data'] {
   const out = { tabulaBytes: 0, bakedBytes: 0, baked: 0 };
   for (const [path, bytes] of written) {
-    if (path.endsWith('.tabula')) out.tabulaBytes += bytes.length;
+    if (path.endsWith('.tbin')) out.tabulaBytes += bytes.length;
     else if (path.endsWith('.baked')) { out.bakedBytes += bytes.length; out.baked++; }
   }
   return out;

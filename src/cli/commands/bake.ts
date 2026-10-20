@@ -8,9 +8,9 @@ import { writeFile, mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { loadValidatedSkeleton } from '../../export/compile.js';
 import { loadAtlasNextTo } from '../../export/sources.js';
-import { bakeToBuffer } from '../../core/bake-report.js';
-import type { BakeOptions, BakeResult } from '../../core/bake-report.js';
-import { DEFAULT_BAKE_MAX_ERROR } from '../../core/baked-format.js';
+import { bakeToBuffer } from 'tabula-pixi/core/bake-report.js';
+import type { BakeOptions, BakeResult } from 'tabula-pixi/core/bake-report.js';
+import { DEFAULT_BAKE_MAX_ERROR } from 'tabula-pixi/core/baked-format.js';
 import { printWarning } from './compile.js';
 
 /** Interpolation error (skeleton units) above which the report warns. */

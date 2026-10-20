@@ -4,7 +4,7 @@
  *
  *   audit <path...>   feature usage + validation report
  *   check <path...>   validation only; exit code 1 on errors (CI)
- *   compile <path...> compile exports to .tabula (binary skeleton + atlas)
+ *   compile <path...> compile exports to .tbin (binary skeleton + atlas)
  *   bake <file.json>  bake animations to a binary .baked file
  *   repack <path...>  rebuild atlas pages per co-draw group
  *   manifest <dir...> asset manifest with load groups
@@ -22,15 +22,15 @@ import { collectSkeletonFiles, loadAtlasNextTo } from '../export/sources.js';
 import { bakeCommand } from './commands/bake.js';
 import { repackCommand } from './commands/repack.js';
 import type { PageImageFormat } from '../export/pages.js';
-import type { BasisCodec } from '../core/texture-formats.js';
+import type { BasisCodec } from 'tabula-pixi/core/texture-formats.js';
 import { compileCommand } from './commands/compile.js';
 import { manifestCommand } from './commands/manifest.js';
 import { FONT_USAGE, fontCommand } from './commands/font.js';
 import { installKtxTool, ktxCacheDir, ktxVersionSync, resolveKtxTool, KTX_SOFTWARE_VERSION } from '../export/pack/ktx-tool.js';
-import { SpineJsonParser } from '../core/adapters/spine-json-parser.js';
+import { SpineJsonParser } from 'tabula-pixi/core/adapters/spine-json-parser.js';
 import { appCommand } from './app/command.js';
 import { inspectCommand } from './commands/inspect.js';
-import { validateSkeleton } from '../core/validate.js';
+import { validateSkeleton } from 'tabula-pixi/core/validate.js';
 import { setKtxInstallLog } from '../export/pack/ktx2.js';
 
 const USAGE = `Tabula - lean Spine runtime build tool
@@ -38,7 +38,7 @@ const USAGE = `Tabula - lean Spine runtime build tool
 Commands:
   audit <path...>    Feature usage + validation report (markdown or json)
   check <path...>    Validate exports; exit code 1 if any has errors
-  compile <path...>  Compile exports to .tabula (binary skeleton, used atlas regions embedded)
+  compile <path...>  Compile exports to .tbin (binary skeleton, used atlas regions embedded)
   bake <file.json>   Bake animations to a compressed .baked file, with an error report
   repack <path...>   Rebuild atlas pages per co-draw group (-o <dir> required)
   manifest <dir...>  Write assets.manifest.json (skeletons, baked, pages, tiers, KTX2, sprite sheets, load groups)
@@ -53,7 +53,7 @@ Options:
   -o, --output <f>       Output file (compile: output directory)
   --atlas <file>         compile: atlas to embed (default: <name>.atlas next to each JSON)
   --no-atlas             compile: do not embed an atlas
-  --bake                 compile, repack --compile: also write <name>.baked next to each .tabula
+  --bake                 compile, repack --compile: also write <name>.baked next to each .tbin
   -f, --format <fmt>     audit: markdown | json (default markdown)
   --fps <n>              bake: sample rate (default: smallest multiple of the
                          authoring key rate >= 30, e.g. 48 for 24 fps keys; else 30)
@@ -73,7 +73,7 @@ Options:
   --no-pot               repack: allow non-power-of-two page sizes
   --image-format <f>     repack: png | webp | webp-lossless (default png)
   --quality <n>          repack: lossy WebP quality (default 90)
-  --compile              repack: also write <skeleton>.tabula embedding its group atlas
+  --compile              repack: also write <skeleton>.tbin embedding its group atlas
   --ktx2 <codec>         repack: also write KTX2 / Basis Universal pages: uastc (quality) | etc1s (size)
                          | none; per group / page in the groups file ("ktx2", "pages": {"game_1": "etc1s"}).
                          Uses $TABULA_KTX, else the project-local ktx (installed on first use; set

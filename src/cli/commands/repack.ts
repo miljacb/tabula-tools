@@ -1,25 +1,25 @@
 /**
  * `tabula repack`: rebuild atlas pages per co-draw group (see
  * export/pack/repack.ts), write the pages, one `.atlas` per group, optionally
- * compiled `.tabula` files that embed their group's atlas, and a report.
+ * compiled `.tbin` files that embed their group's atlas, and a report.
  */
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { collectSkeletonFiles, loadAtlasNextTo } from '../../export/sources.js';
-import { compileSkeleton } from '../../core/slb-writer.js';
-import { bakeToBuffer } from '../../core/bake-report.js';
+import { compileSkeleton } from 'tabula-pixi/core/slb-writer.js';
+import { bakeToBuffer } from 'tabula-pixi/core/bake-report.js';
 import { loadValidatedSkeleton } from '../../export/compile.js';
 import { encodeGroupPages, ktx2Selector, loadHiResAtlases, loadPageImage, manifestFileName } from '../../export/pages.js';
 import type { PageImageFormat, RepackGroupsFile } from '../../export/pages.js';
 import { writeAtlasText } from '../../export/atlas-writer.js';
 import { renderTierPages, repackAtlases } from '../../export/pack/repack.js';
 import type { RepackSkeleton } from '../../export/pack/repack.js';
-import { DEFAULT_BAKE_MAX_ERROR } from '../../core/baked-format.js';
+import { DEFAULT_BAKE_MAX_ERROR } from 'tabula-pixi/core/baked-format.js';
 import { groupReport } from '../../export/repack-report.js';
 import type { RepackGroupReport } from '../../export/repack-report.js';
-import { tierFileName, tierSize } from '../../core/texture-formats.js';
-import type { BasisCodec } from '../../core/texture-formats.js';
+import { tierFileName, tierSize } from 'tabula-pixi/core/texture-formats.js';
+import type { BasisCodec } from 'tabula-pixi/core/texture-formats.js';
 import { printBakeSummary } from './bake.js';
 import { printWarning } from './compile.js';
 
@@ -37,7 +37,7 @@ export interface RepackCommandOptions {
   imageFormat?: PageImageFormat;
   /** WebP quality (lossy). */
   quality?: number;
-  /** Also write `<skeleton>.tabula` with the group atlas embedded. */
+  /** Also write `<skeleton>.tbin` with the group atlas embedded. */
   compile?: boolean;
   /** With `compile`: also write `<skeleton>.baked` (all animations, auto rate). */
   bake?: boolean;
@@ -55,7 +55,7 @@ export interface RepackCommandOptions {
 
 /** Repack the atlases of every Spine JSON under `paths`. Returns the per-group report. */
 export async function repackCommand(paths: string[], options: RepackCommandOptions): Promise<RepackGroupReport[]> {
-  if (options.bake && !options.compile) throw new Error('repack --bake needs --compile (baked files pair with the compiled .tabula)');
+  if (options.bake && !options.compile) throw new Error('repack --bake needs --compile (baked files pair with the compiled .tbin)');
   const config: RepackGroupsFile = options.groups ? (JSON.parse(await readFile(options.groups, 'utf-8')) as RepackGroupsFile) : {};
   const skeletons: RepackSkeleton[] = [];
   const tiers = options.tiers ?? config.tiers ?? [1];
@@ -88,7 +88,7 @@ export async function repackCommand(paths: string[], options: RepackCommandOptio
     await writeFile(join(options.outDir, manifestFileName(group.name)), JSON.stringify(manifest, null, 2));
     if (options.compile) {
       for (const data of group.skeletons) {
-        await writeFile(join(options.outDir, `${data.name}.tabula`), new Uint8Array(compileSkeleton(data, group.atlas)));
+        await writeFile(join(options.outDir, `${data.name}.tbin`), new Uint8Array(compileSkeleton(data, group.atlas)));
         if (options.bake) {
           const baked = bakeToBuffer(data, group.atlas, { maxError: options.maxError, tolerance: options.tolerance });
           const output = join(options.outDir, `${data.name}.baked`);

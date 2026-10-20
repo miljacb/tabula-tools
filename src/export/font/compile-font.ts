@@ -10,8 +10,8 @@
 
 import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
-import { SDF_FONT_FORMAT, SDF_FONT_VERSION } from '../../core/text/font-format.js';
-import type { SdfFontJson, SdfKerningJson } from '../../core/text/font-format.js';
+import { SDF_FONT_FORMAT, SDF_FONT_VERSION } from 'tabula-pixi/core/text/font-format.js';
+import type { SdfFontJson, SdfKerningJson } from 'tabula-pixi/core/text/font-format.js';
 import { OpenTypeTables } from './opentype-tables.js';
 import { FONT_CHARSETS, languageCharset } from './charsets.js';
 

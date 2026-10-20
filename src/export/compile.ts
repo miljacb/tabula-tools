@@ -5,9 +5,9 @@
 
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
-import { SpineJsonParser } from '../core/adapters/spine-json-parser.js';
-import { validateSkeleton } from '../core/validate.js';
-import type { AtlasData, SkeletonData } from '../core/types.js';
+import { SpineJsonParser } from 'tabula-pixi/core/adapters/spine-json-parser.js';
+import { validateSkeleton } from 'tabula-pixi/core/validate.js';
+import type { AtlasData, SkeletonData } from 'tabula-pixi/core/types.js';
 
 /**
  * Parse and validate one Spine JSON export. Throws on validation errors;

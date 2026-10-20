@@ -44,7 +44,7 @@ describe('exportProject', () => {
       sourceDir: src, outDir: out, compress: ['symbol1'], onEvent: (e) => events.push(e),
       config: { format: 'files', imageFormat: 'png', tiers: [1, 0.5], loadGroups: { groups: { base: ['symbol*'], ui: ['icons'] } } },
     });
-    expect(report.skeletons.symbol1).toMatchObject({ format: 'tabula', group: 'atlas' });
+    expect(report.skeletons.symbol1).toMatchObject({ format: 'tbin', group: 'atlas' });
     expect(report.skeletons.symbol2).toMatchObject({ format: 'json', reason: 'not selected for compression' });
     expect(report.sprites).toEqual({ icons: [1, 0.5] });
     expect(report.tiers.map((t) => t.tier)).toEqual([1, 0.5]);
@@ -52,13 +52,13 @@ describe('exportProject', () => {
 
     const files = readdirSync(out, { recursive: true }).map(String).sort();
     expect(files).toEqual(expect.arrayContaining([
-      '.tabula-export', 'assets.manifest.json', 'atlas.png', 'atlas@0.5x.png', 'atlas.textures.json', 'symbol1.tabula', 'symbol1.baked',
+      '.tabula-export', 'assets.manifest.json', 'atlas.png', 'atlas@0.5x.png', 'atlas.textures.json', 'symbol1.tbin', 'symbol1.baked',
       join('raw', 'symbol2.json'), join('raw', 'symbol2.atlas'), join('sprites', 'ui', 'icons.json'), join('sprites', 'ui', 'icons@0.5x.json'), join('sprites', 'ui', 'icons@0.5x.png'),
     ]));
     const manifest = validateAssetManifest(JSON.parse(readFileSync(join(out, 'assets.manifest.json'), 'utf8')));
     expect(manifest.version).toBe(3);
     expect(manifest.sprites.icons!.page).toBe('icons.png'); // the sheet image is a page: tiers, KTX2
-    expect(manifest.skeletons.symbol1).toMatchObject({ format: 'tabula', baked: { path: 'symbol1.baked' } });
+    expect(manifest.skeletons.symbol1).toMatchObject({ format: 'tbin', baked: { path: 'symbol1.baked' } });
     expect(manifest.skeletons.symbol2).toMatchObject({ format: 'json', file: { path: 'raw/symbol2.json' } });
     expect(manifest.sprites.icons!.tiers!['0.5']).toMatchObject({ json: { path: 'sprites/ui/icons@0.5x.json' } });
     expect(manifest.groups.ui!.sprites).toEqual(['icons']);
@@ -72,14 +72,14 @@ describe('exportProject', () => {
     const src = await project();
     const out = join(src, 'export');
     await exportProject({ sourceDir: src, outDir: out, config: { format: 'files', imageFormat: 'png' } });
-    expect(existsSync(join(out, 'symbol2.tabula'))).toBe(true);
+    expect(existsSync(join(out, 'symbol2.tbin'))).toBe(true);
     const events: ExportEvent[] = [];
     // Tier 2 without symbol1@2x / symbol2@2x exports: both fall back to their JSON.
     const report = await exportProject({ sourceDir: src, outDir: out, config: { format: 'files', imageFormat: 'png', tiers: [2, 1] }, onEvent: (e) => events.push(e) });
     expect(report.skeletons.symbol1).toMatchObject({ format: 'json', reason: expect.stringMatching(/symbol1@2x\.atlas/) });
     expect(events.filter((e) => e.type === 'fallback').map((e) => (e as { asset: string }).asset).sort()).toEqual(['symbol1', 'symbol2']);
     expect(report.warnings.join()).toMatch(/icons: no @2x export/);
-    expect(existsSync(join(out, 'symbol2.tabula'))).toBe(false); // the earlier export's file is gone
+    expect(existsSync(join(out, 'symbol2.tbin'))).toBe(false); // the earlier export's file is gone
     expect(report.manifest.skeletons.symbol2!.format).toBe('json');
   });
 
@@ -95,7 +95,7 @@ describe('exportProject', () => {
     expect(readdirSync(out).sort()).toEqual(['.tabula-export', 'assets.manifest.json', 'export-report.json', 'game.tbla', 'game@0.5x.tbla']);
     expect(report.bundles.map((b) => [b.path, b.tier])).toEqual([['game.tbla', 1], ['game@0.5x.tbla', 0.5]]);
     const half = (await readBundle(new Uint8Array(readFileSync(join(out, 'game@0.5x.tbla'))))).toc.files.map((f) => f.path);
-    expect(half).toEqual(expect.arrayContaining(['symbol1.tabula', 'symbol1.baked', 'atlas@0.5x.png', 'images/logo@0.5x.png', 'sprites/ui/icons@0.5x.json', 'sprites/ui/icons@0.5x.png']));
+    expect(half).toEqual(expect.arrayContaining(['symbol1.tbin', 'symbol1.baked', 'atlas@0.5x.png', 'images/logo@0.5x.png', 'sprites/ui/icons@0.5x.json', 'sprites/ui/icons@0.5x.png']));
     expect(half.some((p) => p === 'atlas.png' || p === 'images/logo.png')).toBe(false); // only its tier's pages
 
     // Load it the way a game does: only the manifest and the bundles exist.

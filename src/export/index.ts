@@ -17,8 +17,8 @@ export {
 export { loadProjectConfig, validateProjectConfig, PROJECT_CONFIG_FILE, type TabulaProjectConfig } from './config.js';
 export { loadValidatedSkeleton } from './compile.js';
 // Compile and bake are pure and live in the runtime's core; re-exported for the engine API.
-export { compileSkeleton } from '../core/slb-writer.js';
-export { bakeToBuffer, type BakeOptions, type BakeResult } from '../core/bake-report.js';
+export { compileSkeleton } from 'tabula-pixi/core/slb-writer.js';
+export { bakeToBuffer, type BakeOptions, type BakeResult } from 'tabula-pixi/core/bake-report.js';
 export { collectSkeletonFiles, loadAtlasNextTo, isTierExport } from './sources.js';
 export {
   encodeGroupPages, ktx2Selector, manifestFileName, decodeImage, loadPageImage, encodePageImage, loadHiResAtlases,

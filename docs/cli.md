@@ -15,9 +15,9 @@ line and exit with code 1.
 |---|---|
 | [`check`](#check) | Validate exports (CI gate). |
 | [`audit`](#audit) | Feature usage + validation report. |
-| [`compile`](#compile) | JSON → `.tabula` (+ `.baked`). |
+| [`compile`](#compile) | JSON → `.tbin` (+ `.baked`). |
 | [`bake`](#bake) | Bake one skeleton's animations, with an error report. |
-| [`repack`](#repack) | Rebuild atlas pages per co-draw group; tiers, KTX2, `.tabula`, `.baked`. |
+| [`repack`](#repack) | Rebuild atlas pages per co-draw group; tiers, KTX2, `.tbin`, `.baked`. |
 | [`manifest`](#manifest) | Write `assets.manifest.json` with load groups. |
 | [`font`](#font) | TTF/OTF → SDF font for `SdfText`. |
 | [`ktx-tool`](#ktx-tool) | Show / install the KTX2 encoder. |
@@ -68,7 +68,7 @@ tabula audit assets/ -f json > audit.json
 tabula compile <path...> [-o dir] [--atlas file | --no-atlas] [--bake [--max-error n] [--tolerance n]]
 ```
 
-Validates (errors abort) and writes `<name>.tabula` per export, embedding the
+Validates (errors abort) and writes `<name>.tbin` per export, embedding the
 atlas pages and only the regions the skeleton uses.
 
 | Flag | Default | Meaning |
@@ -122,7 +122,7 @@ tabula repack <path...> -o <dir> [--groups file] [layout flags] [--image-format 
 
 Rebuilds atlas pages per **co-draw group** (skeletons drawn together share
 pages; a region used by several groups is copied into each). Writes
-`<group>.atlas`, pages, `<group>.textures.json`, optional `.tabula`/`.baked`, and
+`<group>.atlas`, pages, `<group>.textures.json`, optional `.tbin`/`.baked`, and
 `repack-report.json` (pages, fill, VRAM and file size before/after). Needs the
 optional dependency `sharp`.
 
@@ -138,7 +138,7 @@ optional dependency `sharp`.
 | `--no-pot` | power of two | Allow non-power-of-two page sizes. |
 | `--image-format <f>` | `png` | `png`, `webp` or `webp-lossless`. |
 | `--quality <n>` | 90 | Lossy WebP quality. |
-| `--compile` | off | Also write `<skeleton>.tabula` embedding its group atlas. |
+| `--compile` | off | Also write `<skeleton>.tbin` embedding its group atlas. |
 | `--bake` | off | With `--compile`: also write `<skeleton>.baked` (`--max-error`, `--tolerance` apply). |
 | `--ktx2 <codec>` | none | Also write KTX2 pages: `uastc` (quality), `etc1s` (size), `none`. |
 | `--ktx2-quality <n>` | UASTC 2 / ETC1S 128 | UASTC level 0–4, ETC1S quality 1–255. |
@@ -172,7 +172,7 @@ tabula repack assets/ -o out --max-size 4096 --image-format webp --quality 85
 tabula manifest <dir...> [-o assets.manifest.json] [--load-groups file]
 ```
 
-Scans build outputs (`.tabula`, `.baked`, page images and tier/KTX2 files,
+Scans build outputs (`.tbin`, `.baked`, page images and tier/KTX2 files,
 `*.textures.json`, sprite sheet JSON + image, `*.font.json` SDF fonts with
 their pages) and writes the asset manifest
 with content hashes and load groups.

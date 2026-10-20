@@ -5,11 +5,11 @@
 
 import { readFile, writeFile } from 'node:fs/promises';
 import { basename } from 'node:path';
-import { SpineJsonParser } from '../../core/adapters/spine-json-parser.js';
-import { validateSkeleton } from '../../core/validate.js';
+import { SpineJsonParser } from 'tabula-pixi/core/adapters/spine-json-parser.js';
+import { validateSkeleton } from 'tabula-pixi/core/validate.js';
 import { collectSkeletonFiles, loadAtlasNextTo } from '../../export/sources.js';
-import { BlendMode } from '../../core/types.js';
-import type { SkeletonData } from '../../core/types.js';
+import { BlendMode } from 'tabula-pixi/core/types.js';
+import type { SkeletonData } from 'tabula-pixi/core/types.js';
 
 /** Feature counts for one skeleton (or totals across files). */
 export interface FeatureUsage {
@@ -207,7 +207,7 @@ const RUNTIME_SUPPORT = [
   '| boundingBox | not drawn; world polygons and point-in-polygon hit tests: `Clip.hitTest` / `getBoundingBoxes`, `ClipView.hitTest` / `containsPoint` (Pixi events) |',
   '| multiply / screen blend | separate blend state: one batch break per switch |',
   '| two-color tint | vertex format + shader + rgba2/rgb2 timelines |',
-  '| compiled format | `tabula compile` → `.tabula` (no JSON parsing at runtime) |',
+  '| compiled format | `tabula compile` → `.tbin` (no JSON parsing at runtime) |',
 ];
 
 function markdownReport(report: AuditReport): string {
