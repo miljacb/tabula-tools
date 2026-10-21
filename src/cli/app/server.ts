@@ -10,9 +10,6 @@
  *   GET  /api/project          assets, settings, last export report (409 without a project)
  *   PUT  /api/config           save tabula.config.json
  *   POST /api/export           { compress?: string[] } → NDJSON events, then { type: 'done', report } or { type: 'failed', error }
- *   GET  /files/src/<path>     project files
- *   GET  /files/out/<path>     export files
- *   GET  /basis/<file>         Basis transcoder (KTX2 preview)
  */
 
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
@@ -20,13 +17,12 @@ import { homedir } from 'node:os';
 import { existsSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { SpineJsonParser } from 'tabula-pixi/core/adapters/spine-json-parser.js';
 import { AtlasParser } from 'tabula-pixi/core/adapters/atlas-parser.js';
 import { validateSkeleton } from 'tabula-pixi/core/validate.js';
 import { inspectBundle } from '../commands/inspect.js';
 import { PROJECT_CONFIG_FILE, loadProjectConfig, validateProjectConfig } from '../../export/config.js';
-import { MANIFEST_FILE, REPORT_FILE, discoverProject, exportProject } from '../../export/export-project.js';
+import { GAME_BUNDLE_FILE, MANIFEST_FILE, REPORT_FILE, discoverProject, exportProject } from '../../export/export-project.js';
 import type { ExportEvent } from '../../export/export-project.js';
 
 /** Options for {@link createAppHandler}. */
@@ -37,8 +33,6 @@ export interface AppServerOptions {
   outDir?: string;
   /** Where the recent projects are kept (default `~/.tbin/recent.json`). */
   recentFile?: string;
-  /** Folder with basis_transcoder.js / .wasm (default: tabula-pixi's vendor/basis). */
-  basisDir?: string;
 }
 
 /** A skeleton as the app lists it. */
@@ -71,6 +65,8 @@ export interface AppProject {
   report: unknown;
   /** The export folder has a manifest (the preview can load exported assets). */
   exported: boolean;
+  /** File of the export to open it from: its manifest, or the single game.tbla of a simple release export. */
+  entry: string | null;
   /** `.tbla` bundles in the project folder (outside the export), e.g. sent by a designer. */
   bundles: AppBundle[];
 }
@@ -88,11 +84,6 @@ export interface AppBundle {
   error?: string;
 }
 
-const TYPES: Record<string, string> = {
-  json: 'application/json', atlas: 'text/plain', png: 'image/png', webp: 'image/webp', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-  ktx2: 'image/ktx2', tbla: 'application/octet-stream', tabula: 'application/octet-stream', baked: 'application/octet-stream', wasm: 'application/wasm', js: 'text/javascript',
-};
-
 /** Connect-style handler (`next` for requests it does not serve), with `open` to switch the project. */
 export type AppHandler = ((req: IncomingMessage, res: ServerResponse, next: () => void) => void) & {
   /** Open a project folder (a file: its folder); remembered in the recent projects. */
@@ -107,7 +98,6 @@ const MAX_RECENT = 10;
 export function createAppHandler(options: AppServerOptions = {}): AppHandler {
   const initial = options.projectDir ? resolve(options.projectDir) : null;
   const recentFile = options.recentFile ?? join(homedir(), '.tbin', 'recent.json');
-  const basisDir = options.basisDir ?? findBasisDir();
   let projectDir: string | null = null;
   /** A `.tbla` opened directly: the page selects it. */
   let selectBundle: string | null = null;
@@ -155,8 +145,7 @@ export function createAppHandler(options: AppServerOptions = {}): AppHandler {
       }
     }
     if (!projectDir) {
-      if (path.startsWith('/api/') || path.startsWith('/files/')) return sendJson(res, { error: 'No project is open' }, 409);
-      if (path.startsWith('/basis/') && basisDir) return sendFile(res, basisDir, path.slice('/basis/'.length), next);
+      if (path.startsWith('/api/')) return sendJson(res, { error: 'No project is open' }, 409);
       return next();
     }
     if (path === '/api/project' && req.method === 'GET') return sendJson(res, await readProject(projectDir, outDir));
@@ -186,9 +175,6 @@ export function createAppHandler(options: AppServerOptions = {}): AppHandler {
       }
       return;
     }
-    if (path.startsWith('/files/src/')) return sendFile(res, projectDir, path.slice('/files/src/'.length), next);
-    if (path.startsWith('/files/out/')) return sendFile(res, outDir, path.slice('/files/out/'.length), next);
-    if (path.startsWith('/basis/') && basisDir) return sendFile(res, basisDir, path.slice('/basis/'.length), next);
     next();
   };
 
@@ -245,35 +231,18 @@ export async function readProject(projectDir: string, outDir: string): Promise<A
       bundles.push({ path: rel(file), bytes: 0, meta: {}, members: null, files: [], error: (err as Error).message });
     }
   }
+  const entry = [MANIFEST_FILE, GAME_BUNDLE_FILE].find((file) => existsSync(join(outDir, file))) ?? null;
   return {
     dir: projectDir, outDir, config: await loadProjectConfig(projectDir).catch((err: Error) => ({ error: err.message })),
     skeletons, sprites: files.sprites.map(rel), fonts: files.fonts.map(rel), skel: files.skel.map(rel),
-    report, exported: existsSync(join(outDir, MANIFEST_FILE)), bundles,
+    report, exported: entry !== null, entry, bundles,
   };
 }
 
-/** tabula-pixi's vendored Basis transcoder (the `tabula-pixi/basis/*` export). */
-function findBasisDir(): string | undefined {
-  try {
-    const wasm = fileURLToPath(import.meta.resolve('tabula-pixi/basis/basis_transcoder.wasm'));
-    return existsSync(wasm) ? dirname(wasm) : undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 function sendJson(res: ServerResponse, value: unknown, status = 200): void {
   res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(value));
-}
-
-async function sendFile(res: ServerResponse, root: string, path: string, next: () => void): Promise<void> {
-  const file = resolve(root, path);
-  if (file !== root && !file.startsWith(root + sep)) return next(); // no ../ out of the folder
-  const bytes = await readFile(file).catch(() => null);
-  if (!bytes) return next();
-  res.writeHead(200, { 'Content-Type': TYPES[file.slice(file.lastIndexOf('.') + 1).toLowerCase()] ?? 'application/octet-stream', 'Cache-Control': 'no-store' });
-  res.end(bytes);
 }
 
 function readBody(req: IncomingMessage): Promise<string> {

@@ -1,0 +1,48 @@
+{
+"skeleton": { "hash": "g9ydf980OlQ", "spine": "4.1-from-4.2.43", "x": -76, "y": -76, "width": 152, "height": 152 },
+"bones": [
+	{ "name": "root" },
+	{ "name": "group", "parent": "root" },
+	{ "name": "store", "parent": "group" }
+],
+"slots": [
+	{ "name": "store", "bone": "store", "attachment": "ui_buttons/store" }
+],
+"skins": [
+	{
+		"name": "default",
+		"attachments": {
+			"store": {
+				"ui_buttons/store": { "width": 152, "height": 152 }
+			}
+		}
+	}
+],
+"animations": {
+	"openStore": {
+		"bones": {
+			"store": {
+				"scale": [
+					{
+						"curve": [ 0.028, 1, 0.056, 0.8, 0.028, 1, 0.056, 0.8 ]
+					},
+					{
+						"time": 0.0833,
+						"x": 0.8,
+						"y": 0.8,
+						"curve": [ 0.111, 0.8, 0.139, 1.2, 0.111, 0.8, 0.139, 1.2 ]
+					},
+					{
+						"time": 0.1667,
+						"x": 1.2,
+						"y": 1.2,
+						"curve": [ 0.194, 1.2, 0.222, 1, 0.194, 1.2, 0.222, 1 ]
+					},
+					{ "time": 0.25 }
+				]
+			}
+		}
+	},
+	"storeIdle": {}
+}
+}

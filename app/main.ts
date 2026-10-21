@@ -1,15 +1,12 @@
 /**
- * The Tabula app page: read a project folder, play its assets (source and
- * exported side by side, at any tier, with or without KTX2), and produce an
- * export. Talks to the server in src/cli/app/server.ts.
+ * The Tabula app page: read a project folder, check its assets, set the
+ * export (load groups, atlas pages, tiers) and produce it. There is no
+ * preview here: play skeletons and exports in the Tabula Viewer
+ * (packages/viewer). Talks to the server in src/cli/app/server.ts.
  */
 
-import { Application, Rectangle, Sprite, UPDATE_PRIORITY } from 'pixi.js';
 import { globToRegExp } from 'tabula-pixi/core/manifest.js';
-import { TabulaAssetManager, createTabulaRuntime, registerTabulaRenderer, unloadTabulaAsset } from 'tabula-pixi';
-import type { ClipView, TabulaAsset, TabulaRuntime } from 'tabula-pixi';
-import { loadTabulaJson, spineJson } from 'tabula-pixi/json';
-import type { AppBundle, AppProject, AppSkeleton } from '../src/cli/app/server.js';
+import type { AppProject } from '../src/cli/app/server.js';
 import type { ExportEvent, ExportReport } from '../src/export/export-project.js';
 import type { TabulaProjectConfig } from '../src/export/config.js';
 
@@ -24,8 +21,6 @@ interface DesktopBridge {
   pathForFile(file: File): string;
   /** The app menu opened a project. */
   onProjectOpened(callback: (dir: string) => void): void;
-  /** CPU throttling of the page (1 = off). */
-  setCpuThrottle?(rate: number): Promise<void>;
 }
 const desktop = (window as { tabula?: DesktopBridge }).tabula;
 
@@ -46,270 +41,6 @@ let project: AppProject;
 let selected: string | null = null;
 const compress = new Set<string>();
 let exporting = false;
-
-// --- preview -------------------------------------------------------------------
-
-registerTabulaRenderer();
-const app = new Application({ resizeTo: $('stage'), backgroundAlpha: 0, antialias: true, autoDensity: true, resolution: devicePixelRatio });
-$('stage').prepend(app.view as HTMLCanvasElement);
-const runtime: TabulaRuntime = createTabulaRuntime(app);
-let views: ClipView[] = [];
-let sourceAsset: { name: string; asset: TabulaAsset } | null = null;
-let manager: { key: string; promise: Promise<TabulaAssetManager> } | null = null;
-let previewToken = 0;
-
-function exportedManager(): Promise<TabulaAssetManager> {
-  const tier = Number(($('tier') as HTMLSelectElement).value || 1);
-  const ktx2 = ($('ktx2') as HTMLInputElement).checked;
-  const key = `${tier}|${ktx2}|${(project.report as Report | null)?.date ?? ''}`;
-  if (manager?.key !== key) {
-    const old = manager;
-    manager = {
-      key,
-      promise: TabulaAssetManager.load('/files/out/assets.manifest.json', {
-        renderer: app.renderer, transcoder: ktx2 ? '/basis/' : undefined, ktx2, tier, json: spineJson, cacheBust: true,
-      }),
-    };
-    void old?.promise.then((m) => m.destroy(), () => undefined);
-  }
-  return manager.promise;
-}
-
-async function loadExported(name: string): Promise<{ asset: TabulaAsset; label: string } | null> {
-  if (!project.exported) return null;
-  const m = await exportedManager();
-  const entry = m.manifest.skeletons[name];
-  if (!entry) return null;
-  const group = Object.keys(m.manifest.groups).find((g) => m.manifest.groups[g]!.skeletons.includes(name))!;
-  await m.loadGroup(group);
-  const pages = m.loadedPages().filter((p) => entry.pages.includes(p.name));
-  const gpu = pages.reduce((n, p) => n + p.gpuBytes, 0);
-  const label = `Exported · ${entry.format === 'json' ? 'raw JSON' : `compressed${entry.baked ? ', baked' : ''}`} · tier ${m.tier}x · ${pages.map((p) => p.format).join('/') || 'no pages'} · ${kib(gpu)} GPU`;
-  return { asset: m.getAsset(name), label };
-}
-
-async function loadSource(s: AppSkeleton): Promise<TabulaAsset> {
-  if (sourceAsset?.name === s.name) return sourceAsset.asset;
-  if (sourceAsset) unloadTabulaAsset(sourceAsset.asset);
-  const asset = await loadTabulaJson(`/files/src/${s.json}`);
-  sourceAsset = { name: s.name, asset };
-  return asset;
-}
-
-// --- scene and performance ------------------------------------------------------
-
-/** Frame CPU time: from the first ticker listener to after Pixi's render. */
-let frameStart = 0;
-let frameMs = 0;
-let frames = 0;
-app.ticker.add(() => {
-  frameStart = performance.now();
-}, null, UPDATE_PRIORITY.INTERACTION);
-app.ticker.add(() => {
-  frameMs += performance.now() - frameStart;
-  frames++;
-}, null, UPDATE_PRIORITY.UTILITY);
-
-let sceneInfo: { gpuBytes: () => number; pages: () => number } | null = null;
-const sceneSources = new Map<string, TabulaAsset>();
-let statsTimer: ReturnType<typeof setInterval> | null = null;
-
-function idleAnimation(names: string[]): string | null {
-  return names.find((a) => /idle/i.test(a)) ?? names[0] ?? null;
-}
-
-async function showScene(s: AppSkeleton, token: number): Promise<void> {
-  const set = pageSetOf(s.name);
-  const members = project.skeletons.filter((k) => pageSetOf(k.name) === set && k.animations.length && !k.errors.length);
-  if (!members.some((m) => m.name === s.name)) members.unshift(s);
-  const count = Number(($('scene-count') as HTMLSelectElement).value);
-  const assets: { name: string; asset: TabulaAsset }[] = [];
-  let label: string;
-  const exported = project.exported ? await exportedManager() : null;
-  if (exported && members.every((m) => exported.manifest.skeletons[m.name])) {
-    const groups = [...new Set(members.flatMap((m) => Object.keys(exported.manifest.groups).filter((g) => exported.manifest.groups[g]!.skeletons.includes(m.name))))];
-    await Promise.all(groups.map((g) => exported.loadGroup(g)));
-    for (const m of members) assets.push({ name: m.name, asset: exported.getAsset(m.name) });
-    sceneInfo = { gpuBytes: () => exported.gpuBytes, pages: () => exported.loadedPages().length };
-    label = `Scene · exported · page set "${set}" · tier ${exported.tier}x · groups ${groups.join(', ')}`;
-  } else {
-    for (const m of members) {
-      let asset = sceneSources.get(m.name);
-      if (!asset) {
-        asset = await loadTabulaJson(`/files/src/${m.json}`);
-        sceneSources.set(m.name, asset);
-      }
-      assets.push({ name: m.name, asset });
-    }
-    const textures = (): Set<{ realWidth: number; realHeight: number }> => new Set(assets.flatMap((a) => [...a.asset.textures.values()]) as unknown as { realWidth: number; realHeight: number }[]);
-    sceneInfo = { gpuBytes: () => [...textures()].reduce((n, t) => n + t.realWidth * t.realHeight * 4, 0), pages: () => textures().size };
-    label = `Scene · source JSON${project.exported ? ' (export it to measure the exported build)' : ''} · page set "${set}"`;
-  }
-  if (token !== previewToken) return;
-  const cols = Math.max(1, Math.round(Math.sqrt(count * (app.screen.width / app.screen.height))));
-  const rows = Math.ceil(count / cols);
-  const cw = app.screen.width / cols;
-  const ch = (app.screen.height - 30) / rows;
-  const bounds = new Map<string, Rectangle>();
-  for (let i = 0; i < count; i++) {
-    const { name, asset } = assets[i % assets.length]!;
-    const view = runtime.createView(asset);
-    const anim = idleAnimation(asset.data.animations.map((a) => a.name));
-    if (!bounds.has(name)) bounds.set(name, poseBounds(view, anim));
-    app.stage.addChild(view);
-    fit(view, bounds.get(name)!, cw * (i % cols) + cw / 2, 30 + ch * Math.floor(i / cols) + ch / 2, cw * 0.9, ch * 0.9);
-    if (anim) view.play(anim, { loop: true, speed: 0.8 + ((i * 37) % 40) / 100 });
-    views.push(view);
-  }
-  $('label-left').textContent = label;
-  $('label-right').textContent = `${count} views of ${assets.length} skeletons`;
-  startStats();
-}
-
-function startStats(): void {
-  stopStats();
-  frameMs = 0;
-  frames = 0;
-  ($('stats') as HTMLElement).hidden = false;
-  const tick = (): void => {
-    const st = runtime.stats;
-    const cpu = frames ? frameMs / frames : 0;
-    frameMs = 0;
-    frames = 0;
-    const gpu = (sceneInfo?.gpuBytes() ?? 0) / 1048576;
-    const row = (label: string, value: string): HTMLElement => h('div', { class: 'row' }, h('span', { textContent: label }), h('span', { textContent: value }));
-    const breaks = Object.entries(st.batchBreaks).filter(([, n]) => n > 0).map(([why, n]) => `${n} × ${why}`).join('\n');
-    $('stats').replaceChildren(
-      row('Draw calls', String(st.drawCalls)),
-      row('GPU memory', `${gpu.toFixed(1)} MB`),
-      row('CPU / frame', `${cpu.toFixed(2)} ms`),
-      row('Pages loaded', String(sceneInfo?.pages() ?? 0)),
-      row('Triangles', String(st.triangles)),
-      row('FPS', app.ticker.FPS.toFixed(0)),
-      h('div', { class: 'breaks', textContent: breaks ? `Extra batches:\n${breaks}` : 'No batch breaks' }),
-    );
-  };
-  statsTimer = setInterval(tick, 300);
-}
-
-function stopStats(): void {
-  if (statsTimer) clearInterval(statsTimer);
-  statsTimer = null;
-  ($('stats') as HTMLElement).hidden = true;
-}
-
-/** Preview a `.tbla` from the project: its own manifest, its first skeleton (or image). */
-async function showBundle(b: AppBundle, token: number): Promise<void> {
-  if (b.error || !b.members) {
-    $('stage-empty').textContent = b.error ?? 'This bundle has no manifest inside (a release bundle): open the export instead';
-    return;
-  }
-  const m = await TabulaAssetManager.load(`/files/src/${b.path}`, { renderer: app.renderer, transcoder: '/basis/', json: spineJson });
-  await m.loadGroup('base');
-  if (token !== previewToken) return m.destroy();
-  bundleManager?.destroy();
-  bundleManager = m;
-  const name = b.members.skeletons[0];
-  if (name) {
-    const view = runtime.createView(m.getAsset(name));
-    const anim = ($('animation') as HTMLSelectElement).value || idleAnimation(m.getAsset(name).data.animations.map((a) => a.name));
-    app.stage.addChild(view);
-    fit(view, poseBounds(view, anim), app.screen.width / 2, app.screen.height / 2 + 10, app.screen.width * 0.86, app.screen.height * 0.8);
-    if (anim) view.play(anim, { loop: true });
-    views.push(view);
-  } else if (b.members.images[0]) {
-    const sprite = new Sprite(m.getTexture(b.members.images[0]));
-    sprite.anchor.set(0.5);
-    sprite.position.set(app.screen.width / 2, app.screen.height / 2);
-    sprite.scale.set(Math.min(1, (app.screen.width * 0.8) / sprite.width, (app.screen.height * 0.8) / sprite.height));
-    app.stage.addChild(sprite);
-    extraDisplay.push(sprite);
-  }
-  $('label-left').textContent = `${b.path} · tier ${String(b.meta.tier ?? 1)}x · ${kib(b.bytes)} · ${m.loadedPages().map((p) => p.format).join('/')} · ${kib(m.gpuBytes)} GPU`;
-}
-
-let bundleManager: TabulaAssetManager | null = null;
-const extraDisplay: Sprite[] = [];
-
-async function showPreview(): Promise<void> {
-  const token = ++previewToken;
-  app.resize(); // the stage may have changed size with the panels around it
-  for (const v of views) v.destroy();
-  views = [];
-  for (const d of extraDisplay.splice(0)) d.destroy();
-  stopStats();
-  $('label-left').textContent = '';
-  $('label-right').textContent = '';
-  const mode = ($('mode') as HTMLSelectElement).value;
-  document.body.classList.toggle('scene', mode === 'scene');
-  if (selected?.startsWith('bundle:')) {
-    const b = project.bundles.find((x) => `bundle:${x.path}` === selected);
-    $('stage-empty').textContent = '';
-    if (b) await showBundle(b, token).catch((err: Error) => ($('stage-empty').textContent = `Could not load: ${err.message}`));
-    return;
-  }
-  const s = project.skeletons.find((k) => k.name === selected);
-  $('stage-empty').textContent = s ? (s.errors.length && !s.animations.length ? 'Cannot be shown: see the errors below' : '') : 'Select a skeleton';
-  if (!s || (s.errors.length && !s.animations.length)) return;
-  if (mode === 'scene') {
-    await showScene(s, token).catch((err: Error) => ($('stage-empty').textContent = `Could not load: ${err.message}`));
-    return;
-  }
-  const animation = ($('animation') as HTMLSelectElement).value || null;
-  const slots: { asset: TabulaAsset; label: string }[] = [];
-  try {
-    if (mode !== 'exported') slots.push({ asset: await loadSource(s), label: `Source · Spine ${s.spineVersion} JSON · ${kib(s.bytes)}` });
-    if (mode !== 'source') {
-      const exported = await loadExported(s.name);
-      if (exported) slots.push(exported);
-      else if (mode === 'exported') $('stage-empty').textContent = project.exported ? 'Not in the export' : 'Not exported yet';
-    }
-  } catch (err) {
-    $('stage-empty').textContent = `Could not load: ${(err as Error).message}`;
-    return;
-  }
-  if (token !== previewToken) return;
-  const width = app.screen.width / slots.length;
-  slots.forEach((slot, i) => {
-    const view = runtime.createView(slot.asset);
-    app.stage.addChild(view);
-    fit(view, poseBounds(view, animation), width * i + width / 2, app.screen.height / 2 + 10, width * 0.86, app.screen.height * 0.8);
-    if (animation) view.play(animation, { loop: true });
-    views.push(view);
-    $(i === 0 ? 'label-left' : 'label-right').textContent = slot.label;
-  });
-}
-
-/** Rendered bounds across the animation (header bounds are often wrong in exports); leaves the clip stopped. */
-function poseBounds(view: ClipView, animation: string | null): Rectangle {
-  const union = new Rectangle();
-  const sample = new Rectangle();
-  let empty = true;
-  const add = (): void => {
-    view.getPoseBounds(sample);
-    if (sample.width <= 0 && sample.height <= 0) return;
-    if (empty) union.copyFrom(sample);
-    else union.enlarge(sample);
-    empty = false;
-  };
-  const clip = view.clip;
-  if (animation && clip.hasAnimation(animation)) {
-    clip.play(animation);
-    for (let i = 0; i < 9; i++) {
-      clip.seek((clip.duration * i) / 8);
-      add();
-    }
-  }
-  clip.stop();
-  if (empty) add();
-  return empty ? new Rectangle(-100, -100, 200, 200) : union;
-}
-
-function fit(view: ClipView, b: Rectangle, x: number, y: number, w: number, hgt: number): void {
-  const scale = Math.min(w / b.width, hgt / b.height, 4);
-  view.scale.set(scale);
-  view.position.set(x - (b.x + b.width / 2) * scale, y - (b.y + b.height / 2) * scale);
-}
 
 // --- read ----------------------------------------------------------------------
 
@@ -412,13 +143,6 @@ function renderDetails(): void {
 
 // --- groups ---------------------------------------------------
 
-/** Page set of a skeleton, as a release export assigns it (exact name, then patterns; else "misc", or "atlas" without sets). */
-function pageSetOf(name: string): string {
-  const groups = config().atlas?.groups ?? [];
-  if (!groups.length) return 'atlas';
-  return (groups.find((g) => g.skeletons.includes(name)) ?? groups.find((g) => g.skeletons.some((p) => globToRegExp(p).test(name))))?.name ?? 'misc';
-}
-
 /** Load groups of a member, as the manifest assigns them. */
 function loadGroupsOf(name: string): string[] {
   const spec = config().loadGroups ?? {};
@@ -491,21 +215,12 @@ function pageSetsFor(spec: NonNullable<TabulaProjectConfig['loadGroups']>, previ
 function afterAssign(): void {
   renderDetails();
   renderSettings();
-  if (($('mode') as HTMLSelectElement).value === 'scene') void showPreview();
 }
 
 function select(name: string): void {
   selected = name;
-  const s = project.skeletons.find((k) => k.name === name);
-  const anim = $('animation') as HTMLSelectElement;
-  const previous = anim.value;
-  const names = s?.animations ?? [];
-  anim.replaceChildren(...names.map((a) => h('option', { value: a, textContent: a })));
-  if (names.includes(previous)) anim.value = previous;
-  else anim.value = idleAnimation(names) ?? '';
   renderAssets();
   renderDetails();
-  void showPreview();
 }
 
 // --- produce -------------------------------------------------------------------
@@ -748,14 +463,6 @@ function showError(err: Error): void {
   $('status').textContent = err.message;
 }
 
-function renderTierSelect(): void {
-  const tiers = (project.report as Report | null)?.tiers.map((t) => t.tier) ?? [1];
-  const select = $('tier') as HTMLSelectElement;
-  const previous = select.value;
-  select.replaceChildren(...tiers.map((t) => h('option', { value: String(t), textContent: `${t}x` })));
-  select.value = tiers.map(String).includes(previous) ? previous : '1';
-}
-
 // --- open ----------------------------------------------------------------------
 
 function showStart(recent: string[], error = ''): void {
@@ -772,19 +479,8 @@ function showStart(recent: string[], error = ''): void {
   }) : [h('li', { class: 'muted', textContent: 'No recent projects' })]));
 }
 
-/** Forget everything of the previous project (views, loaded assets, selection). */
+/** Forget everything of the previous project (selection, what is checked for compression). */
 function resetProject(): void {
-  previewToken++;
-  for (const v of views) v.destroy();
-  views = [];
-  if (sourceAsset) unloadTabulaAsset(sourceAsset.asset);
-  sourceAsset = null;
-  for (const a of sceneSources.values()) unloadTabulaAsset(a);
-  sceneSources.clear();
-  bundleManager?.destroy();
-  bundleManager = null;
-  void manager?.promise.then((m) => m.destroy(), () => undefined);
-  manager = null;
   selected = null;
   compress.clear();
 }
@@ -806,7 +502,6 @@ async function showProject(select: string | null = null): Promise<void> {
   ($('start') as HTMLElement).hidden = true;
   (document.querySelector('main') as HTMLElement).hidden = false;
   $('export').hidden = false;
-  app.resize();
   await refresh();
 }
 
@@ -832,7 +527,6 @@ async function refresh(): Promise<void> {
   project = await res.json() as AppProject;
   if (!compress.size) for (const s of project.skeletons) compress.add(s.name);
   $('project-path').textContent = project.dir;
-  renderTierSelect();
   renderAssets();
   renderSettings();
   renderReport();
@@ -869,27 +563,4 @@ document.addEventListener('drop', (e) => {
   void openProject(desktop.pathForFile(file));
 });
 desktop?.onProjectOpened(() => void showProject());
-for (const id of ['animation', 'mode', 'tier', 'ktx2', 'scene-count']) $(id).onchange = () => void showPreview();
-$('throttle-label').hidden = !desktop?.setCpuThrottle;
-$('throttle').onchange = () => void desktop?.setCpuThrottle?.(Number(($('throttle') as HTMLSelectElement).value));
-$('mode').addEventListener('change', () => {
-  // Leaving the scene ends the weak-device emulation.
-  if (($('mode') as HTMLSelectElement).value !== 'scene' && ($('throttle') as HTMLSelectElement).value !== '1') {
-    ($('throttle') as HTMLSelectElement).value = '1';
-    void desktop?.setCpuThrottle?.(1);
-  }
-});
-// Re-layout when the preview area changes size (window, details panel, start screen).
-let lastStage = '';
-let relayout: ReturnType<typeof setTimeout> | null = null;
-new ResizeObserver(([entry]) => {
-  const size = `${Math.round(entry!.contentRect.width)}x${Math.round(entry!.contentRect.height)}`;
-  if (size === lastStage || !entry!.contentRect.height) return;
-  lastStage = size;
-  if (relayout) clearTimeout(relayout);
-  relayout = setTimeout(() => {
-    if (project && selected) void showPreview();
-    else app.resize();
-  }, 120);
-}).observe($('stage'));
 void boot().catch(showError);

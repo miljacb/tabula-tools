@@ -10,7 +10,7 @@
  *   manifest <dir...> asset manifest with load groups
  *   ktx-tool          show / install the project-local KTX2 encoder
  *   font <font...>    MSDF font atlas + metrics for SDF text
- *   app [folder]      the Tabula app: read, preview and export a project folder
+ *   app [folder]      the Tabula app: read and export a project folder
  *   inspect <f.tbla>  what a .tbla bundle holds (--unpack <dir> writes its files)
  */
 
@@ -43,8 +43,8 @@ Commands:
   repack <path...>   Rebuild atlas pages per co-draw group (-o <dir> required)
   manifest <dir...>  Write assets.manifest.json (skeletons, baked, pages, tiers, KTX2, sprite sheets, load groups)
   inspect <f.tbla>   Show a .tbla bundle's files, sizes and assets (checksums checked); --unpack <dir> writes them out
-  app [folder]       Open the Tabula app (on a project folder, else its start screen): list the assets, preview them
-                     (source and exported side by side, tiers, KTX2), set tiers / compression, export
+  app [folder]       Open the Tabula app (on a project folder, else its start screen): list the assets,
+                     set tiers / compression, export
   font <font...>     Compile TTF/OTF fonts (or --google families) to MSDF atlas pages + <name>.font.json for SDF text (-o <dir>)
   ktx-tool           Show which KTX2 encoder ("ktx") is used; --install puts the pinned KTX-Software
                      build into node_modules/.cache/tabula (checksum-verified, no admin rights)

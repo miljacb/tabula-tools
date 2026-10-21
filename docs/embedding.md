@@ -2,6 +2,11 @@
 
 Written for: engineers who will run or port the Tabula export inside their own tool.
 
+Studio exports for now: Tabula Studio is the source of truth for the export
+and its package layout; its `lib/export` is the maintained copy of this
+engine. This guide describes the engine kept here, which follows Studio's
+layout.
+
 This is the logic of the export, not the UI. The engine is `exportProject` in
 [src/export/export-project.ts](../src/export/export-project.ts). Everything it
 needs is in `src/export/` and the `tabula-pixi` package (`tabula-pixi/core/*`), so an app can call it directly or
@@ -25,7 +30,9 @@ port the steps below.
 **Output: an export folder** containing:
 
 - `assets.manifest.json`: the index the game loads. Lists every file, its
-  tiers, load groups and sizes.
+  tiers, load groups and sizes. A simple release export (one load group, one
+  tier, no KTX2) has none: it is one `game.tbla` with the manifest inside, as
+  Tabula Studio writes it (`report.entry` names the file to open).
 - For each compressed skeleton: `<name>.tbin` (compiled data) and
   `<name>.baked` (pre-baked samples, when baking succeeded).
 - For each atlas group: its pages per tier (and KTX2 pages), a
@@ -154,9 +161,12 @@ conflicts, so review them.
 
 ### 9. Pack `.tbla` bundles (release mode)
 
-`packBundles` in `export-project.ts` groups the files into bundles, one per
-load group and tier, with the manifest embedded so each bundle can be read on
-its own.
+A simple release export (one load group, one tier, no KTX2) is a single
+self-contained `game.tbla`: every file plus the manifest inside, no manifest
+beside it. This is Tabula Studio's package layout and it is the reference.
+
+Otherwise `packBundles` in `export-project.ts` groups the files into bundles,
+one per load group and tier, and the manifest is written beside them.
 
 - Bundles are split by kind: data (`.tbin`, `.baked`, JSON) first, KTX2
   pages next, image copies last. A device that supports KTX2 never downloads
@@ -164,7 +174,7 @@ its own.
 - Data files may be deflated (`.tbla` version 2). Pages are not, because they
   are compressed already.
 
-The format is documented at the top of tabula-pixi's `src/core/tbla.ts`.
+The format is documented at the top of tabula-pixi's `src/core/tbla.ts` (in the package: `tabula-pixi/core/tbla.js`).
 `writeBundle` writes it; `readBundle` reads it back for checks.
 
 Development mode skips the bundling and writes one `.tbla` per asset and tier
@@ -228,7 +238,11 @@ Each step is a function you can call alone: `discoverProject`,
 
 ## Known gaps
 
-- `tabula app` (the `app` command and desktop shell) still loads the Basis
-  transcoder from a tabula-pixi checkout. The export itself does not.
-- Tests, the app and the demo scripts still use the tabula-pixi checkout.
+- The engine depends on the published `tabula-pixi` package (`tabula-pixi/core/*`
+  and the Basis transcoder in `tabula-pixi/basis/*`), pinned in `package.json`.
+  Install it with the engine; no checkout is needed. A change to the format
+  (manifest, `.tbin`, `.tbla`) lands in tabula-pixi first, then tools bumps
+  the pinned version.
+- `tabula-pixi` is public on npm, but tabula-tools is not published yet, so a
+  colleague still installs it from git or a tarball.
 - Binary `.skel` input is not supported.

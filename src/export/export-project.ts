@@ -34,9 +34,9 @@ import { blit, createImage, premultiply, resizeArea, unpremultiply } from './pac
 import type { RgbaImage } from './pack/image.js';
 import { checkKtxTool, encodeKtx2 } from './pack/ktx2.js';
 import type { Ktx2EncodeOptions } from './pack/ktx2.js';
-import { availableTiers, buildAssetManifest, contentHash, globToRegExp, isSpineJson } from 'tabula-pixi/core/manifest.js';
+import { ASSET_MANIFEST_VERSION, availableTiers, buildAssetManifest, contentHash, globToRegExp, isSpineJson } from 'tabula-pixi/core/manifest.js';
 import type { AssetManifest, ManifestBundle, ManifestExtras, ManifestGroup, ManifestInputFile, TierCost } from 'tabula-pixi/core/manifest.js';
-import { type BundleFile, writeBundle } from 'tabula-pixi/core/tbla.js';
+import { BUNDLE_MANIFEST, type BundleFile, writeBundle } from 'tabula-pixi/core/tbla.js';
 import { resolveTier, tierFileName, tierSize } from 'tabula-pixi/core/texture-formats.js';
 import type { BasisCodec, TextureManifest } from 'tabula-pixi/core/texture-formats.js';
 import type { AtlasPage } from 'tabula-pixi/core/types.js';
@@ -49,6 +49,8 @@ export const EXPORT_MARKER = '.tabula-export';
 export const MANIFEST_FILE = 'assets.manifest.json';
 /** Export summary (the report without the manifest), next to the manifest. */
 export const REPORT_FILE = 'export-report.json';
+/** The single self-contained bundle of a simple release export (manifest inside), as Tabula Studio writes it. */
+export const GAME_BUNDLE_FILE = 'game.tbla';
 
 /** Something the export reports while it runs (the app shows these). */
 export type ExportEvent =
@@ -107,6 +109,11 @@ export interface ExportReport {
   manifest: AssetManifest;
   mode: 'release' | 'development';
   format: 'tbla' | 'files';
+  /**
+   * File to open the export from (`TabulaAssetManager.load`): {@link GAME_BUNDLE_FILE} for a simple release
+   * export (one load group, one tier, no KTX2: one `.tbla` with the manifest inside), else {@link MANIFEST_FILE}.
+   */
+  entry: string;
   skeletons: Record<string, SkeletonExport>;
   /** Sprite sheets and the tiers written for each. */
   sprites: Record<string, number[]>;
@@ -433,10 +440,25 @@ export async function exportProject(options: ExportOptions): Promise<ExportRepor
   // Pack, then replace the output folder.
   const out = new Map<string, Uint8Array>();
   let bundles: BundleReport[] = [];
-  if (format === 'tbla') {
+  // As Tabula Studio packages it: a release with one load group, one tier and no KTX2 pages is a single
+  // self-contained game.tbla (manifest inside, none beside it); anything else is the bundle split with the
+  // manifest beside the bundles.
+  const selfContained = format === 'tbla' && mode === 'release' && Object.keys(manifest.groups).length <= 1
+    && tiers.length === 1 && ![...written.keys()].some((p) => /\.ktx2$/i.test(p));
+  const entry = selfContained ? GAME_BUNDLE_FILE : MANIFEST_FILE;
+  if (selfContained) {
+    emit({ type: 'step', message: 'Packing game.tbla' });
+    const paths = [...written.keys()];
+    const bytes = await writeBundle(
+      [...paths.map((path, order) => ({ path, bytes: written.get(path)!, order })), { path: BUNDLE_MANIFEST, bytes: new TextEncoder().encode(JSON.stringify(manifest)) }],
+      { tier: 1, group: 'game', mode },
+    );
+    out.set(GAME_BUNDLE_FILE, bytes);
+    bundles = [{ path: GAME_BUNDLE_FILE, tier: 1, group: 'game', kind: 'data', bytes: bytes.length, files: paths.length }];
+  } else if (format === 'tbla') {
     emit({ type: 'step', message: 'Packing .tbla bundles' });
     const packed = await packBundles(manifest, written, mode, tiers);
-    manifest.version = 3;
+    manifest.version = ASSET_MANIFEST_VERSION;
     manifest.bundles = packed.entries;
     for (const [path, bytes] of packed.files) out.set(path, bytes);
     bundles = packed.entries.map((b) => ({
@@ -446,7 +468,7 @@ export async function exportProject(options: ExportOptions): Promise<ExportRepor
     for (const [path, bytes] of written) out.set(path, bytes);
   }
   const downloads = deviceDownloads(manifest, written, tiers, format === 'tbla' ? bundles : null);
-  out.set(MANIFEST_FILE, new TextEncoder().encode(`${JSON.stringify(manifest, null, 1)}\n`));
+  if (!selfContained) out.set(MANIFEST_FILE, new TextEncoder().encode(`${JSON.stringify(manifest, null, 1)}\n`));
   await prepareOutDir(outDir);
   for (const [path, bytes] of out) {
     await mkdir(dirname(join(outDir, path)), { recursive: true });
@@ -455,7 +477,7 @@ export async function exportProject(options: ExportOptions): Promise<ExportRepor
   let outputBytes = 0;
   for (const bytes of out.values()) outputBytes += bytes.length;
   const report: ExportReport = {
-    manifest, mode, format, skeletons, sprites, images, fonts, bundles, conflicts, tiers: availableTiers(manifest), downloads, pages: pageList(manifest), data: dataSizes(written), warnings, sourceBytes, outputBytes, ms: performance.now() - t0,
+    manifest, mode, format, entry, skeletons, sprites, images, fonts, bundles, conflicts, tiers: availableTiers(manifest), downloads, pages: pageList(manifest), data: dataSizes(written), warnings, sourceBytes, outputBytes, ms: performance.now() - t0,
   };
   const summary: Partial<ExportReport> & { date: string } = { ...report, date: new Date().toISOString() };
   delete summary.manifest;
@@ -787,7 +809,7 @@ function embeddedManifest(manifest: AssetManifest, files: ReadonlyMap<string, Ui
   };
   if (members.images?.length) group.images = members.images;
   return {
-    format: 'tabula-manifest', version: 3, skeletons: pick(manifest.skeletons, members.skeletons), pages, textureSets, sprites,
+    format: 'tabula-manifest', version: ASSET_MANIFEST_VERSION, skeletons: pick(manifest.skeletons, members.skeletons), pages, textureSets, sprites,
     fonts: pick(fonts, fontNames), ...(members.images ? { images: pick(manifest.images, members.images) } : {}),
     groups: { base: group }, preload: [],
   };

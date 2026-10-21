@@ -1,12 +1,19 @@
 # Tabula app and export
 
-The Tabula app reads a folder of Spine exports, plays them, and writes an
-export folder a game loads through its [asset manifest](../../tabula-pixi/docs/api/manifest.md). It
-does three things:
+The Tabula app reads a folder of Spine exports and writes an export folder a
+game loads through its asset manifest. It does two things:
 
 - **Read**: list every skeleton, sprite sheet and font, with its size, Spine version, errors and warnings.
-- **Play**: preview a skeleton from its source JSON and from the export side by side, at any tier, with or without KTX2.
 - **Produce**: choose what to compress and how, export, and see what it saved.
+
+There is no preview in the app: play skeletons and exports in the Tabula
+Viewer (`packages/viewer`).
+
+> **Studio exports for now.** Tabula Studio is the source of truth for the
+> export and its package layout; its `lib/export` is the maintained copy of
+> this engine. The export here is kept as it is (the engine, the CLI and
+> this app still work) but is not developed further until the two are
+> reconciled. When they differ, follow Studio.
 
 Compression is optional. A game can load raw exports (Spine JSON + atlas +
 pages), compressed ones, or a mix, with the same code.
@@ -19,8 +26,8 @@ project. File → Open Folder… (Cmd/Ctrl+O) switches projects.
 
 ```sh
 # in the tabula-tools folder (next to tabula-pixi; build tabula-pixi first)
-npm run desktop                # run it from the repo (builds first); add a folder to open it
-npm run desktop:dist           # installers in dist-desktop/: .dmg (macOS), .exe (Windows), AppImage (Linux)
+pnpm desktop                # run it from the repo (builds first); add a folder to open it
+pnpm desktop:dist           # installers in dist-desktop/: .dmg (macOS), .exe (Windows), AppImage (Linux)
 ```
 
 Each installer is built on its own platform. The app is not code-signed
@@ -38,17 +45,17 @@ npx tabula app path/to/assets -o dist/assets --port 8080 --no-open
 
 A browser cannot hand a page the path of a dropped folder, so there the
 folder is given on the command line or typed in. The server listens on
-127.0.0.1 only. Repo development, in the tabula-tools folder: `npm run app`
-(Vite, on `TABULA_PROJECT` or `../tabula-pixi/test-assets/`; exports of the test assets go
-to `node_modules/.cache/tabula-app-export`), `npm run app:build` builds the
+127.0.0.1 only. Repo development, in the tabula-tools folder: `pnpm app`
+(Vite, on `TABULA_PROJECT` or `tests/assets/`; exports of the test assets go
+to `node_modules/.cache/tabula-app-export`), `pnpm app:build` builds the
 page `tabula app` serves (`dist-app/`).
 
 ## Workflow
 
 1. The designer exports from Spine as **JSON** (4.1 or 4.2) with the atlas and its pages, into the project folder. Binary `.skel` is not supported.
-2. During development the game loads these raw files through the manifest; see [Raw and compiled skeletons together](../../tabula-pixi/docs/api/manifest.md#raw-and-compiled-skeletons-together).
+2. During development the game loads these raw files through the manifest; see Raw and compiled skeletons together.
 3. In the app, check the skeletons to compress and set the tiers and KTX2 codec, then press **Export**.
-4. Compare source and exported in the preview, at each tier, and approve the exported version: it is what players will see.
+4. Open the export in the Tabula Viewer, play it, and approve it: it is what players will see.
 5. Ship the export folder. Designers can also send an export folder instead of raw files.
 
 ## Export modes and `.tbla`
@@ -58,6 +65,13 @@ page `tabula app` serves (`dist-app/`).
 | Bundles | Per load group and tier: `game.tbla` (data, and pages without a KTX2 copy), `game.ktx2.tbla` (KTX2 pages), `game.images.tbla` (the image copies of those pages); `game@0.5x.tbla` … per tier; `base…`, `bonus…` with load groups. Without KTX2 one bundle per group and tier. | One `.tbla` per asset and tier: `symbol1.tbla`, `symbol1@0.5x.tbla` |
 | Pages | Skeletons of a page set share repacked atlas pages (fewest draw calls) | Each skeleton has its own pages |
 | Use | Shipping | Swapping or sending one asset at a time; each bundle has its manifest inside, so it opens on its own |
+
+A simple release export (one load group, one tier, no KTX2) is written as
+Tabula Studio writes it: **one self-contained `game.tbla`** with the manifest
+inside and no `assets.manifest.json` beside it. Load groups, extra tiers or KTX2
+pages give the split above, with `assets.manifest.json` beside the bundles.
+Studio's layout is the reference; `report.entry` names the file to open the
+export from.
 
 `format: "files"` writes loose files instead (inspect, debug).
 
@@ -85,7 +99,8 @@ language. `tabula inspect x.tbla` lists a bundle (checksums checked,
 deflated sizes shown); `--unpack <dir>` writes its files, unpacked.
 
 The game code is the same for every mode and format:
-`TabulaAssetManager.load('assets.manifest.json')`, then assets by name.
+`TabulaAssetManager.load(report.entry)` (`game.tbla` for a simple release export,
+else `assets.manifest.json`), then assets by name.
 `TabulaAssetManager.load('symbol1.tbla')` opens a development bundle alone.
 
 **Images.** PNG / WebP / JPG files not used by an atlas, sprite sheet or
@@ -97,17 +112,10 @@ Sprite sheet images are pages too (tiers, KTX2), frames scaled per tier.
 - **Page set** (`atlas.groups`): which skeletons share atlas pages. Drawn together → one page set → fewer draw calls, less GPU memory.
 - **Load group** (`loadGroups`): which assets are initialized together (decoded and uploaded to the GPU). Download can happen earlier (`preloadGroup`).
 
-Select a skeleton in the app and pick its page set and load group below the
-preview ("New…" creates one). A name assigned there wins over patterns
+Select a skeleton in the app and pick its page set and load group in its
+details ("New…" creates one). A name assigned there wins over patterns
 (`symbol*`) of other sets. When a page set holds skeletons of several load
 groups, the app warns: initializing one group uploads the whole page.
-
-## Scene and performance
-
-Show → **Scene**: the selected skeleton's page set, repeated (Count), from
-the export when there is one. Live: draw calls (and why each extra batch
-broke), GPU memory, CPU per frame, pages, triangles, FPS. **Weak device**
-(desktop app) slows the CPU 4× or 6× like a cheap phone.
 
 ## Export settings (`tabula.config.json`)
 
@@ -134,7 +142,7 @@ written once a setting is changed.
 
 | Field | Default | Meaning |
 |---|---|---|
-| `tiers` | `[1]` | Resolution tiers of the atlas pages and sprite sheets. Below 1: downscaled. Above 1: from `<name>@2x` exports, never upscaled ([tiers above 1](../../tabula-pixi/docs/api/textures-ktx2.md#tiers-above-1)). |
+| `tiers` | `[1]` | Resolution tiers of the atlas pages and sprite sheets. Below 1: downscaled. Above 1: from `<name>@2x` exports, never upscaled (tiers above 1). |
 | `ktx2` | `none` | `uastc` (quality) or `etc1s` (small) KTX2 pages; per group or page in `atlas.groups`. Trade-off: KTX2 devices download more (test assets, 1x: 10.9 MB vs 7.3 MB) but use about 4× less GPU memory (22 MB vs 89 MB). |
 | `atlas` | one group | Packing and co-draw groups: skeletons drawn together share pages (fewer draw calls). |
 | `bake` | on | Baked animations (`.baked`); `false` plays everything live. |
@@ -147,7 +155,7 @@ written once a setting is changed.
 
 | Path | What |
 |---|---|
-| `assets.manifest.json` | The manifest over exactly the files below. |
+| `assets.manifest.json` | The manifest over exactly the files below (not written for a simple release export: it is inside `game.tbla`). |
 | `<skeleton>.tbin`, `<skeleton>.baked` | Compressed skeletons. |
 | `<group>.png`, `<group>@0.5x.png`, `<group>.ktx2`, … , `<group>.textures.json`, `<group>.atlas` | Repacked pages per co-draw group, per tier and format. |
 | `raw/…` | Skeletons exported raw: JSON, atlas and pages as the designer exported them. |
@@ -185,7 +193,7 @@ used in its place.
 | What | Policy |
 |---|---|
 | Spine JSON 4.1, 4.2 | Supported. |
-| Spine JSON 4.3 and later 4.x | Read best-effort: a warning names the version and any section the runtime ignores. Check the preview. |
+| Spine JSON 4.3 and later 4.x | Read best-effort: a warning names the version and any section the runtime ignores. Check it in the Tabula Viewer. |
 | Spine 5.x | Rejected until supported ("not supported yet"). |
 | Spine before 4.1 | Rejected: re-export as 4.1 or 4.2. |
 | Spine binary `.skel` | Not supported: export JSON. |

@@ -4,7 +4,7 @@
  * port and shows its page in a window. preload.cjs gives the page the folder
  * picker and the paths of dropped folders.
  *
- * Run: npm run desktop. Package: npm run desktop:dist.
+ * Run: pnpm desktop. Package: pnpm desktop:dist.
  */
 
 import { app, BrowserWindow, Menu, dialog, ipcMain, shell } from 'electron';
@@ -68,11 +68,6 @@ app.whenReady().then(async () => {
   const folder = process.argv.slice(app.isPackaged ? 1 : 2).find((a) => !a.startsWith('-'));
   server = await startAppServer({ port: 0, projectDir: folder, recentFile: join(app.getPath('userData'), 'recent.json') });
   ipcMain.handle('tabula:open-folder', () => chooseFolder());
-  ipcMain.handle('tabula:cpu-throttle', async (_event, rate) => {
-    const dbg = win.webContents.debugger;
-    if (!dbg.isAttached()) dbg.attach('1.3');
-    await dbg.sendCommand('Emulation.setCPUThrottlingRate', { rate: Math.max(1, Number(rate) || 1) });
-  });
   buildMenu();
   await createWindow();
   app.on('activate', () => {

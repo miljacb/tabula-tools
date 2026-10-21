@@ -67,14 +67,14 @@ describe('language charsets', () => {
 describe('OpenType tables', () => {
   it('cmap code points match HarfBuzz; OS/2 cap and x height', () => {
     for (const file of ['Inter-Regular', 'NotoSansGeorgian-Regular', 'NotoSansArmenian-Regular']) {
-      const bytes = readFileSync(`../tabula-pixi/test-assets/fonts/${file}.ttf`);
+      const bytes = readFileSync(`tests/assets/fonts/${file}.ttf`);
       const ours = new OpenTypeTables(new Uint8Array(bytes)).codePoints();
       const face = new (hb as any).Face(new (hb as any).Blob(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)));
       const theirs = [...(face.collectUnicodes() as Uint32Array)];
       expect(ours.size).toBeGreaterThan(100);
       expect([...ours].sort((a, b) => a - b)).toEqual(theirs.sort((a, b) => a - b));
     }
-    const inter = new OpenTypeTables(new Uint8Array(readFileSync('../tabula-pixi/test-assets/fonts/Inter-Regular.ttf')));
+    const inter = new OpenTypeTables(new Uint8Array(readFileSync('tests/assets/fonts/Inter-Regular.ttf')));
     expect(inter.os2Heights()).toEqual({ capHeight: 1490, xHeight: 1118 }); // Inter 4.1 (2048 units per em)
   });
 });
@@ -143,7 +143,7 @@ describe('fallback chains and language variants (compile)', () => {
     const dir = tmp();
     const log: string[] = [];
     const written = await fontCommand(
-      ['../tabula-pixi/test-assets/fonts/Inter-Regular.ttf', '../tabula-pixi/test-assets/fonts/NotoSansGeorgian-Regular.ttf', '../tabula-pixi/test-assets/fonts/NotoSansArmenian-Regular.ttf'],
+      ['tests/assets/fonts/Inter-Regular.ttf', 'tests/assets/fonts/NotoSansGeorgian-Regular.ttf', 'tests/assets/fonts/NotoSansArmenian-Regular.ttf'],
       { outDir: dir, chain: true, lang: 'hr,el,ka,hy', perLang: true, name: 'main', size: 24, distanceRange: 6, log: (m) => log.push(m) },
     );
     expect(written.map((w) => w.name).sort()).toEqual(['NotoSansArmenian-Regular@hy', 'NotoSansGeorgian-Regular@ka', 'main@el', 'main@hr', 'main@hy', 'main@ka']);

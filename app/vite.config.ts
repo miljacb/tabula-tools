@@ -3,8 +3,8 @@ import { resolve } from 'path';
 import { createAppHandler } from '../src/cli/app/server.js';
 
 /**
- * The Tabula app page. `npm run app` serves it with the project API on
- * TABULA_PROJECT (default: ../tabula-pixi/test-assets/); `npm run app:build` writes
+ * The Tabula app page. `pnpm app` serves it with the project API on
+ * TABULA_PROJECT (default: tests/assets/); `pnpm app:build` writes
  * dist-app/, which `tabula app <folder>` serves.
  */
 export default defineConfig({
@@ -12,14 +12,14 @@ export default defineConfig({
   plugins: [{
     name: 'tabula-app-api',
     configureServer(server) {
-      const projectDir = process.env.TABULA_PROJECT ?? resolve(__dirname, '../../tabula-pixi/test-assets');
+      const projectDir = process.env.TABULA_PROJECT ?? resolve(__dirname, '../tests/assets');
       // The repo's test assets export to the cache, not into the repo.
       const outDir = process.env.TABULA_PROJECT ? undefined : resolve(__dirname, '../node_modules/.cache/tabula-app-export');
       server.middlewares.use(createAppHandler({ projectDir, outDir }));
     },
   }],
-  // tabula-pixi is linked from ../tabula-pixi: use one Pixi for the app and the runtime.
+  // One Pixi for the app and the tabula-pixi runtime.
   resolve: { dedupe: ['pixi.js'] },
-  server: { port: 43301, fs: { allow: [resolve(__dirname, '../..')] } },
+  server: { port: 43301 },
   build: { outDir: resolve(__dirname, '../dist-app'), emptyOutDir: true },
 });

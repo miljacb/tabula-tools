@@ -24,17 +24,16 @@
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.check.json",
     "lint": "eslint src app tests scripts --ext .ts",
-    "audit": "tsx src/cli/index.ts audit ../tabula-pixi/test-assets",
+    "audit": "tsx src/cli/index.ts audit tests/assets",
     "app": "vite --config app/vite.config.ts",
     "app:build": "vite build --config app/vite.config.ts",
-    "desktop": "npm run build && npm run app:build && node desktop/run.mjs",
-    "desktop:dist": "npm run build && npm run app:build && electron-builder --config desktop/electron-builder.json",
+    "desktop": "pnpm build && pnpm app:build && node desktop/run.mjs",
+    "desktop:dist": "pnpm build && pnpm app:build && electron-builder --config desktop/electron-builder.json",
     "report:ktx": "tsx scripts/ktx-quality.ts",
-    "report:drawcalls": "tsx scripts/scene-drawcalls.ts",
     "docs": "tsx scripts/gen-api-docs.ts"
   },
   "dependencies": {
-    "tabula-pixi": "file:../tabula-pixi"
+    "tabula-pixi": "0.1.0-beta.4"
   },
   "optionalDependencies": {
     "msdfgen-wasm": "1.0.0",
@@ -54,7 +53,7 @@
     "vite": "^5.0.0",
     "vitest": "^1.0.0"
   },
-  "author": "Miljenko Brkić",
+  "author": "Miljenko Brki\u0107",
   "license": "UNLICENSED",
   "keywords": [
     "spine",
@@ -62,5 +61,6 @@
     "pixijs",
     "export",
     "cli"
-  ]
+  ],
+  "packageManager": "pnpm@12.4.2"
 }

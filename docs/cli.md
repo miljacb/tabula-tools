@@ -54,8 +54,8 @@ tabula audit <path...> [-o report.md|report.json] [-f markdown|json]
 
 Lists per skeleton which features are used (bones, constraints, attachment
 types, timelines, blend modes, clipping, sequences…) plus validation results.
-`npm run audit` runs it on `test-assets/`; the committed result is
-[feature-audit.md](../../tabula-pixi/docs/feature-audit.md).
+`pnpm run audit` runs it on `test-assets/`; the committed result is
+feature-audit.md.
 
 ```sh
 tabula audit assets/ -o audit.md
@@ -88,7 +88,7 @@ tabula compile assets/symbols --atlas assets/symbols/symbols.atlas -o public/ass
 
 With one atlas shared by many JSONs, pass it with `--atlas`; the shared page
 then loads once at runtime for all of them (see
-[pixi-v7.md: Atlas setups](../../tabula-pixi/docs/api/pixi-v7.md#atlas-setups)). With one atlas per
+pixi-v7.md: Atlas setups). With one atlas per
 skeleton, `<name>.atlas` next to each JSON is used automatically.
 
 ## bake
@@ -108,7 +108,7 @@ tabula bake <file.json> [-o out.baked] [--fps n] [--max-error n] [--tolerance n]
 | `--no-report` | report on | Skip the per-animation error report. |
 
 Skeletons with physics constraints write no animations (they always play
-live). See [baking.md](../../tabula-pixi/docs/api/baking.md).
+live). See baking.md.
 
 ```sh
 tabula bake assets/symbol1.json -o public/assets/symbol1.baked --fps 60 -a symbolWin,symbolWinLoop
@@ -142,7 +142,7 @@ optional dependency `sharp`.
 | `--bake` | off | With `--compile`: also write `<skeleton>.baked` (`--max-error`, `--tolerance` apply). |
 | `--ktx2 <codec>` | none | Also write KTX2 pages: `uastc` (quality), `etc1s` (size), `none`. |
 | `--ktx2-quality <n>` | UASTC 2 / ETC1S 128 | UASTC level 0–4, ETC1S quality 1–255. |
-| `--tiers <list>` | `1` | Resolution tiers, e.g. `2,1,0.75,0.5`: writes `<page>@0.5x.png` (and `.ktx2`). Tiers above 1 need `<name>@2x.atlas` exports next to each JSON ([never upscaled](../../tabula-pixi/docs/api/textures-ktx2.md#tiers-above-1)). |
+| `--tiers <list>` | `1` | Resolution tiers, e.g. `2,1,0.75,0.5`: writes `<page>@0.5x.png` (and `.ktx2`). Tiers above 1 need `<name>@2x.atlas` exports next to each JSON (never upscaled). |
 
 Groups file (CLI flags are defaults; the file overrides per group/page):
 
@@ -182,7 +182,7 @@ with content hashes and load groups.
 | `-o, --output <file>` | `<first dir>/assets.manifest.json` | Manifest path; file paths in it are relative to it. |
 | `--load-groups <file>` | everything in `base` | `{"groups": {"base": ["symbol*"], "bonus": ["bonus*"]}, "defaultGroup": "base", "preload": ["bonus"]}` |
 
-Prints per group the member count, pages and bytes. See [manifest.md](../../tabula-pixi/docs/api/manifest.md).
+Prints per group the member count, pages and bytes. See manifest.md.
 
 ```sh
 tabula manifest public/assets --load-groups load-groups.json
@@ -197,7 +197,7 @@ tabula font --google "Noto Sans" [--weights 400,700] -o <dir> [...]
 tabula font Inter.ttf NotoSansGeorgian.ttf --chain --lang hr,el,ka --per-lang --name main -o <dir>
 ```
 
-Compiles TrueType / OpenType fonts to SDF fonts for [`SdfText`](../../tabula-pixi/docs/api/text.md):
+Compiles TrueType / OpenType fonts to SDF fonts for `SdfText`:
 `<name>.font.json` (metrics, glyphs, kerning classes, fallbacks) plus page
 images (`<name>.png`, `<name>_1.png`, ...). msdfgen (WebAssembly, nothing
 to install) generates the glyphs: RGB holds a multi-channel SDF for sharp
@@ -217,7 +217,7 @@ extension lookups) or from the legacy `kern` table.
 | `--google <families>` | | Download Google Fonts families (comma-separated or repeated) at build time. See below. |
 | `--weights <list>` | `400` | Weights for `--google`. Several weights write one font each (`Name-Regular`, `Name-Bold`). |
 | `--chain` | off | The fonts form a **fallback chain**. Each character goes to the first font that has it, so later fonts only get what earlier ones lack. The first font lists the others in its `fallbacks`. With `--google`, font files given as arguments head the chain of every weight. |
-| `--per-lang` | off | One variant per `--lang` code, named `<name>@<lang>` (and `<fallback>@<lang>`). Variants hold only that language's characters. The manifest groups them so that [`manager.setLanguage`](../../tabula-pixi/docs/api/manifest.md#languages) can switch between them. |
+| `--per-lang` | off | One variant per `--lang` code, named `<name>@<lang>` (and `<fallback>@<lang>`). Variants hold only that language's characters. The manifest groups them so that `manager.setLanguage` can switch between them. |
 | `--fallback <names>` | | Fallback font names to record in the `.font.json` by hand. |
 | `--lock <file>` | `./tabula-fonts.lock.json` | Lockfile for `--google`. |
 | `--update-lock` | off | Resolve `--google` downloads again and re-pin them. |
@@ -306,8 +306,8 @@ tabula app [folder] [-o <export dir>] [--port n] [--no-open]
 ```
 
 Opens the [Tabula app](app.md) on `folder` (default `.`): a local page
-(127.0.0.1 only) that lists the assets, previews source and exported side
-by side, saves `tabula.config.json` and runs the export. The export folder
+(127.0.0.1 only) that lists the assets, saves `tabula.config.json` and runs
+the export (no preview: use the Tabula Viewer). The export folder
 defaults to `<folder>/tabula-export`.
 
 ## Global

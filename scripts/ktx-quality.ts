@@ -9,7 +9,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { basename } from 'node:path';
 import sharp from 'sharp';
@@ -21,7 +21,7 @@ const BASIS_RGBA32 = 13;
 const args = process.argv.slice(2);
 const outIndex = args.indexOf('--out');
 const out = outIndex >= 0 ? args.splice(outIndex, 2)[1] : null;
-const pages = args.length ? args : ['storeBackground.png', 'fontBandidoTextImage.png', 'shotgunShells.png'].map((p) => `../tabula-pixi/test-assets/${p}`);
+const pages = args.length ? args : readdirSync('tests/assets').filter((f) => /\.(png|webp)$/.test(f)).map((f) => `tests/assets/${f}`);
 
 interface BasisFile {
   isValid(): number; startTranscoding(): number; getImageTranscodedSizeInBytes(l: number, a: number, f: number, fmt: number): number;

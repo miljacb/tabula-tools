@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import { TabulaAssetManager } from 'tabula-pixi';
 import { spineJson } from 'tabula-pixi/json';
-import { readBundle } from 'tabula-pixi/core/tbla.js';
+import { BUNDLE_MANIFEST, readBundle } from 'tabula-pixi/core/tbla.js';
 import { exportProject, scaleSpriteSheet } from '../src/export/export-project.js';
 import type { ExportEvent } from '../src/export/export-project.js';
 import { validateProjectConfig } from '../src/export/config.js';
@@ -13,7 +13,7 @@ import { encodePageImage } from '../src/export/pages.js';
 import { createImage } from '../src/export/pack/image.js';
 import { validateAssetManifest } from 'tabula-pixi/core/manifest.js';
 
-const ASSETS = fileURLToPath(new URL('../../tabula-pixi/test-assets/', import.meta.url));
+const ASSETS = fileURLToPath(new URL('./assets/', import.meta.url));
 
 /** A project folder with two Spine exports (and their pages) and a 16×8 sprite sheet. */
 async function project(): Promise<string> {
@@ -115,6 +115,38 @@ describe('exportProject', () => {
     expect(Object.keys(m.getSprites('icons').textures)).toEqual(['star']);
     expect(m.getTexture('logo').baseTexture).toBeTruthy();
     expect(requested).toEqual(['/assets/assets.manifest.json', '/assets/game@0.5x.tbla']);
+    m.destroy();
+    vi.unstubAllGlobals();
+  });
+
+  it('simple release (one load group, one tier, no KTX2): a single self-contained game.tbla, as Studio writes it', async () => {
+    const src = await project();
+    const out = join(src, 'export');
+    const report = await exportProject({ sourceDir: src, outDir: out, config: { imageFormat: 'png' } });
+    expect(report.entry).toBe('game.tbla');
+    expect(readdirSync(out).sort()).toEqual(['.tabula-export', 'export-report.json', 'game.tbla']); // no manifest beside it
+    expect(report.bundles.map((b) => [b.path, b.tier, b.group, b.kind])).toEqual([['game.tbla', 1, 'game', 'data']]);
+    const bundle = await readBundle(new Uint8Array(readFileSync(join(out, 'game.tbla'))));
+    expect(bundle.toc.meta).toMatchObject({ tier: 1, group: 'game', mode: 'release' });
+    const paths = bundle.toc.files.map((f) => f.path);
+    expect(paths).toEqual(expect.arrayContaining([BUNDLE_MANIFEST, 'symbol1.tbin', 'symbol1.baked', 'atlas.png', 'sprites/ui/icons.png']));
+    const embedded = validateAssetManifest(JSON.parse(new TextDecoder().decode(bundle.files.get(BUNDLE_MANIFEST)!)));
+    expect(Object.keys(embedded.skeletons).sort()).toEqual(['symbol1', 'symbol2']);
+    expect(report.downloads.tiers).toEqual([{ tier: 1, ktx2: null, images: report.bundles[0]!.bytes }]);
+    // A game (or the viewer) opens the .tbla itself: its manifest is inside.
+    class FakeBitmap { width = 4096; height = 4096; close(): void {} }
+    vi.stubGlobal('ImageBitmap', FakeBitmap);
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => new FakeBitmap()));
+    const requested: string[] = [];
+    const fakeFetch = (async (input: RequestInfo | URL) => {
+      const url = String(input).split('?')[0]!;
+      requested.push(url);
+      return new Response(readFileSync(join(out, url.replace('/assets/', ''))));
+    }) as typeof fetch;
+    const m = await TabulaAssetManager.load('/assets/game.tbla', { fetch: fakeFetch, workers: false, json: spineJson });
+    await m.loadGroup('base');
+    expect(m.getAsset('symbol1').data.name).toBe('symbol1');
+    expect([...new Set(requested)]).toEqual(['/assets/game.tbla']);
     m.destroy();
     vi.unstubAllGlobals();
   });

@@ -10,7 +10,7 @@
  */
 
 export {
-  exportProject, discoverProject, cachedKtx2, type ExportPhase, scaleSpriteSheet, EXPORT_MARKER, MANIFEST_FILE, REPORT_FILE,
+  exportProject, discoverProject, cachedKtx2, type ExportPhase, scaleSpriteSheet, EXPORT_MARKER, MANIFEST_FILE, REPORT_FILE, GAME_BUNDLE_FILE,
   type ExportEvent, type ExportOptions, type ExportReport, type SkeletonExport, type ProjectFiles, type SourceSkeleton,
   type BundleReport, type BundleKind, type DeviceDownloads,
 } from './export-project.js';

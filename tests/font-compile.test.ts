@@ -13,7 +13,7 @@ import { compileFont, resolveCharset, addTrueSdfAlpha } from '../src/export/font
 import { SDF_GLYPH_STRIDE } from 'tabula-pixi/core/text/font-format.js';
 import { SdfFont } from 'tabula-pixi/core/text/font.js';
 
-const FONT = '../tabula-pixi/test-assets/fonts/Inter-Regular.ttf';
+const FONT = 'tests/assets/fonts/Inter-Regular.ttf';
 
 describe('tabula font', () => {
   it('compiles glyphs, metrics and kerning that match fontkit (GPOS)', async () => {

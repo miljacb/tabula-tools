@@ -1,5 +1,5 @@
 /**
- * Start the desktop app from a terminal (npm run desktop). Clears
+ * Start the desktop app from a terminal (pnpm desktop). Clears
  * ELECTRON_RUN_AS_NODE, which editor terminals (VS Code) set and which would
  * make Electron run as plain Node. Arguments are passed on (a project folder).
  */

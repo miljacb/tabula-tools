@@ -1,0 +1,582 @@
+{
+"skeleton": { "hash": "JFr/OpROqSo", "spine": "4.1-from-4.2.43", "x": -102, "y": -136, "width": 204, "height": 272 },
+"bones": [
+	{ "name": "root" },
+	{ "name": "bullet", "parent": "root" },
+	{ "name": "sparks", "parent": "bullet", "scaleX": 1.2, "scaleY": 1.2 },
+	{ "name": "mainbone", "parent": "root" },
+	{ "name": "indianHead", "parent": "mainbone", "length": 105.6, "rotation": 89.56, "x": 4.53, "y": -61.84 },
+	{ "name": "bulletHole", "parent": "bullet" }
+],
+"slots": [
+	{ "name": "backgroundIndian", "bone": "mainbone", "attachment": "symbols/indian/backgroundIndian" },
+	{ "name": "flash2", "bone": "root", "color": "fe9a00ff" },
+	{ "name": "indianBody", "bone": "mainbone", "attachment": "symbols/indian/indianBody" },
+	{ "name": "indianHeadShot2", "bone": "mainbone" },
+	{ "name": "indianHead", "bone": "indianHead", "attachment": "symbols/indian/indianHead" },
+	{ "name": "warColor2", "bone": "mainbone", "blend": "screen" },
+	{ "name": "overlayIndian", "bone": "mainbone", "attachment": "symbols/indian/overlayIndian" },
+	{ "name": "indianSpin", "bone": "mainbone" },
+	{ "name": "gunShot", "bone": "bulletHole", "color": "fffffff9" },
+	{ "name": "burningEmber01", "bone": "root", "color": "ffbdbdff", "blend": "additive" },
+	{ "name": "bloodSplatter4", "bone": "mainbone" },
+	{ "name": "bloodSplatter3", "bone": "mainbone" },
+	{ "name": "smokeLight00", "bone": "root", "color": "555555ff" },
+	{ "name": "smokeLight01", "bone": "root", "color": "555555ff" },
+	{ "name": "smokeLight", "bone": "bullet" },
+	{ "name": "smoke", "bone": "sparks" },
+	{ "name": "sparks", "bone": "sparks", "blend": "additive" },
+	{ "name": "sparksAdditive", "bone": "sparks", "blend": "additive" },
+	{ "name": "plankExplode", "bone": "sparks" },
+	{ "name": "flash", "bone": "root", "color": "ffd64aa3" }
+],
+"skins": [
+	{
+		"name": "default",
+		"attachments": {
+			"backgroundIndian": {
+				"symbols/indian/backgroundIndian": { "scaleX": 4, "scaleY": 4, "width": 51, "height": 68 }
+			},
+			"bloodSplatter3": {
+				"symbols/symbolBloodSplatter/bloodSplatter1": { "x": 12, "y": -8, "width": 339, "height": 371 },
+				"symbols/symbolBloodSplatter/bloodSplatter2": { "x": 12, "y": -8, "width": 339, "height": 371 },
+				"symbols/symbolBloodSplatter/bloodSplatter3": { "x": 12, "y": -8, "width": 339, "height": 371 },
+				"symbols/symbolBloodSplatter/bloodSplatter4": { "x": 12, "y": -8, "width": 339, "height": 371 }
+			},
+			"bloodSplatter4": {
+				"symbols/symbolBloodSplatter/bloodSplatter1": { "x": 12, "y": -8, "width": 339, "height": 371 }
+			},
+			"burningEmber01": {
+				"vfx/burningEmber/burningEmber": {
+					"scaleX": 2,
+					"scaleY": 2,
+					"rotation": 180,
+					"width": 102,
+					"height": 136,
+					"sequence": { "count": 9, "start": 0, "digits": 2 }
+				}
+			},
+			"flash": {
+				"warrant/flash": { "scaleX": 7.2, "scaleY": 8.5, "width": 56, "height": 63 }
+			},
+			"flash2": {
+				"warrant/flash": { "scaleX": 6.48, "scaleY": 6.96, "width": 56, "height": 63 }
+			},
+			"gunShot": {
+				"symbols/indian/gunShot": { "color": "ffffffd3", "width": 59, "height": 59 }
+			},
+			"indianBody": {
+				"symbols/indian/indianBody": {
+					"type": "mesh",
+					"uvs": [ 1, 1, 0, 1, 0, 0.63949, 0.12321, 0.5403, 0.27944, 0.41452, 0.32879, 0.3748, 0.75404, 0.40829, 1, 0 ],
+					"triangles": [ 1, 2, 3, 6, 7, 0, 4, 5, 6, 0, 4, 6, 3, 4, 0, 1, 3, 0 ],
+					"vertices": [ 102, -135.6, -102, -135.6, -102, -61.69, -76.87, -41.36, -44.99, -15.58, -34.93, -7.43, 51.82, -14.3, 102, 69.4 ],
+					"hull": 8
+				}
+			},
+			"indianHead": {
+				"symbols/indian/indianHead": { "x": 87.57, "y": 23.2, "rotation": -89.56, "width": 168, "height": 211 }
+			},
+			"indianHeadShot2": {
+				"symbols/indian/indianHeadShot": { "x": -6.96, "y": 17.67, "rotation": -9.19, "width": 174, "height": 223 }
+			},
+			"indianSpin": {
+				"symbols/indian/indianSpin": { "scaleX": 4, "scaleY": 4, "width": 51, "height": 82 }
+			},
+			"overlayIndian": {
+				"symbols/indian/overlayIndian": { "width": 204, "height": 272 }
+			},
+			"plankExplode": {
+				"symbols/plankExplode": { "scaleX": 0.3, "scaleY": 0.3, "width": 196, "height": 202 }
+			},
+			"smoke": {
+				"warrant/Smoke": { "x": -4.6, "y": -0.71, "scaleX": 0.6, "scaleY": 0.6, "width": 95, "height": 95 }
+			},
+			"smokeLight": {
+				"vfx/smoke/smokeLight": {
+					"x": -25.84,
+					"y": 16.56,
+					"scaleX": 4.5,
+					"scaleY": 4.5,
+					"rotation": 56.23,
+					"width": 90,
+					"height": 73,
+					"sequence": { "count": 13, "start": 0, "digits": 2 }
+				}
+			},
+			"smokeLight00": {
+				"vfx/smoke/smokeLight": {
+					"x": -32.04,
+					"y": 12.02,
+					"scaleX": 4,
+					"scaleY": 4,
+					"rotation": 61.2,
+					"width": 90,
+					"height": 73,
+					"sequence": { "count": 14, "start": 0, "digits": 2 }
+				}
+			},
+			"smokeLight01": {
+				"vfx/smoke/smokeLight": {
+					"x": -32.04,
+					"y": 12.02,
+					"scaleX": 4,
+					"scaleY": 4,
+					"rotation": 61.2,
+					"width": 90,
+					"height": 73,
+					"sequence": { "count": 14, "start": 0, "digits": 2 }
+				}
+			},
+			"sparks": {
+				"warrant/explode_00006": { "scaleX": 0.6, "scaleY": 0.6, "width": 186, "height": 186 }
+			},
+			"sparksAdditive": {
+				"warrant/explode_00006": { "scaleX": 0.6, "scaleY": 0.6, "width": 186, "height": 186 }
+			},
+			"warColor2": {
+				"symbols/indian/warColor": {
+					"x": -10.38,
+					"y": 38.29,
+					"scaleX": 0.98,
+					"scaleY": 0.94,
+					"rotation": 18.51,
+					"width": 110,
+					"height": 144
+				}
+			}
+		}
+	}
+],
+"animations": {
+	"symbolIdle": {},
+	"symbolSpin": {
+		"slots": {
+			"backgroundIndian": {
+				"attachment": [
+					{}
+				]
+			},
+			"indianBody": {
+				"attachment": [
+					{}
+				]
+			},
+			"indianHead": {
+				"attachment": [
+					{}
+				]
+			},
+			"indianSpin": {
+				"attachment": [
+					{ "name": "symbols/indian/indianSpin" }
+				]
+			},
+			"overlayIndian": {
+				"attachment": [
+					{}
+				]
+			},
+			"warColor2": {
+				"rgba": [
+					{ "color": "ffffff00" }
+				]
+			}
+		}
+	},
+	"symbolWin": {
+		"slots": {
+			"bloodSplatter3": {
+				"rgba": [
+					{ "time": 0.5, "color": "ffffffff" },
+					{ "time": 1, "color": "ffffff00" }
+				],
+				"attachment": [
+					{ "time": 0.0833, "name": "symbols/symbolBloodSplatter/bloodSplatter1" },
+					{ "time": 0.125, "name": "symbols/symbolBloodSplatter/bloodSplatter2" },
+					{ "time": 0.1667, "name": "symbols/symbolBloodSplatter/bloodSplatter3" },
+					{ "time": 0.2083, "name": "symbols/symbolBloodSplatter/bloodSplatter4" }
+				]
+			},
+			"bloodSplatter4": {
+				"attachment": [
+					{ "time": 0.0833, "name": "symbols/symbolBloodSplatter/bloodSplatter1" }
+				]
+			},
+			"burningEmber01": {
+				"rgba": [
+					{ "color": "ffbdbd00", "curve": "stepped" },
+					{ "time": 0.0417, "color": "ffbdbd00" },
+					{ "time": 0.1667, "color": "ffbdbdff", "curve": "stepped" },
+					{ "time": 0.5417, "color": "ffbdbdff" },
+					{ "time": 0.7917, "color": "ffbdbd00" }
+				],
+				"attachment": [
+					{ "name": "vfx/burningEmber/burningEmber" }
+				]
+			},
+			"flash": {
+				"rgba": [
+					{
+						"color": "ffd64a00",
+						"curve": [ 0.028, 1, 0.056, 1, 0.028, 0.84, 0.056, 0.84, 0.028, 0.29, 0.056, 0.29, 0.028, 0.21, 0.056, 0.64 ]
+					},
+					{ "time": 0.0833, "color": "ffd64aa4", "curve": "stepped" },
+					{
+						"time": 0.1667,
+						"color": "ffd64aa4",
+						"curve": [ 0.194, 1, 0.222, 1, 0.194, 0.84, 0.222, 0.84, 0.194, 0.29, 0.222, 0.29, 0.194, 0.64, 0.222, 0.21 ]
+					},
+					{ "time": 0.25, "color": "ffd64a00" }
+				],
+				"attachment": [
+					{ "name": "warrant/flash" }
+				]
+			},
+			"gunShot": {
+				"rgba": [
+					{ "color": "ffffffff" }
+				],
+				"attachment": [
+					{ "time": 0.1667, "name": "symbols/indian/gunShot" }
+				]
+			},
+			"indianHead": {
+				"rgba": [
+					{ "time": 0.0417, "color": "ffffffff" },
+					{ "time": 0.1667, "color": "ffffff00" }
+				],
+				"attachment": [
+					{ "time": 0.1667 }
+				]
+			},
+			"indianHeadShot2": {
+				"rgba": [
+					{ "color": "ffffff00", "curve": "stepped" },
+					{ "time": 0.0833, "color": "ffffff00" },
+					{ "time": 0.1667, "color": "ffffffff" }
+				],
+				"attachment": [
+					{ "time": 0.0417, "name": "symbols/indian/indianHeadShot" }
+				]
+			},
+			"plankExplode": {
+				"rgba": [
+					{
+						"color": "ffffff00",
+						"curve": [ 0.014, 1, 0.028, 1, 0.014, 1, 0.028, 1, 0.014, 1, 0.028, 1, 0.014, 0.33, 0.028, 1 ]
+					},
+					{ "time": 0.0417, "color": "ffffffff", "curve": "stepped" },
+					{
+						"time": 0.2083,
+						"color": "ffffffff",
+						"curve": [ 0.356, 1, 0.227, 1, 0.356, 1, 0.227, 1, 0.356, 1, 0.227, 1, 0.356, 1, 0.227, 0.59 ]
+					},
+					{ "time": 0.375, "color": "ffffff00" }
+				],
+				"attachment": [
+					{ "name": "symbols/plankExplode" }
+				]
+			},
+			"smoke": {
+				"rgba": [
+					{
+						"color": "ffffff00",
+						"curve": [ 0.027, 1, 0.057, 0.52, 0.027, 1, 0.057, 0.52, 0.027, 1, 0.057, 0.52, 0.027, 0.33, 0.057, 1 ]
+					},
+					{
+						"time": 0.0833,
+						"color": "858585ff",
+						"curve": [ 0.211, 0.52, 0.331, 0.34, 0.211, 0.52, 0.331, 0.34, 0.211, 0.52, 0.331, 0.34, 0.211, 1, 0.331, 0.44 ]
+					},
+					{ "time": 0.4583, "color": "56565600" }
+				],
+				"attachment": [
+					{ "name": "warrant/Smoke" }
+				]
+			},
+			"smokeLight": {
+				"rgba": [
+					{ "color": "a5a5a500" },
+					{ "time": 0.1667, "color": "96969600" },
+					{ "time": 0.2917, "color": "abababff" },
+					{ "time": 0.4583, "color": "afafafff" },
+					{ "time": 0.7083, "color": "b4b4b4be" },
+					{ "time": 0.9583, "color": "ababab00" }
+				],
+				"attachment": [
+					{ "time": 0.2083, "name": "vfx/smoke/smokeLight" }
+				]
+			},
+			"smokeLight00": {
+				"rgba": [
+					{ "color": "ffffff00" },
+					{ "time": 0.0833, "color": "06060600" },
+					{ "time": 0.3333, "color": "919191ff" },
+					{ "time": 0.6667, "color": "b3b3b3ff" },
+					{ "time": 0.9583, "color": "ffffff00" }
+				],
+				"attachment": [
+					{ "name": "vfx/smoke/smokeLight" }
+				]
+			},
+			"smokeLight01": {
+				"rgba": [
+					{ "color": "ffffff00" },
+					{ "time": 0.0833, "color": "06060600" },
+					{ "time": 0.3333, "color": "909090ff" },
+					{ "time": 0.6667, "color": "8b8b8bff" },
+					{ "time": 0.9583, "color": "ffffff00" }
+				],
+				"attachment": [
+					{ "name": "vfx/smoke/smokeLight" }
+				]
+			},
+			"sparks": {
+				"rgba": [
+					{
+						"color": "ffffff00",
+						"curve": [ 0.018, 1, 0.024, 1, 0.018, 1, 0.024, 1, 0.018, 1, 0.024, 1, 0.018, 0.33, 0.024, 1 ]
+					},
+					{
+						"time": 0.0417,
+						"color": "ffffffff",
+						"curve": [ 0.121, 1, 0.212, 1, 0.121, 1, 0.212, 1, 0.121, 1, 0.212, 1, 0.121, 1, 0.212, 0.5 ]
+					},
+					{ "time": 0.2917, "color": "ffffff00" }
+				],
+				"attachment": [
+					{ "name": "warrant/explode_00006" }
+				]
+			},
+			"sparksAdditive": {
+				"rgba": [
+					{
+						"color": "ffffff00",
+						"curve": [ 0.018, 1, 0.024, 1, 0.018, 1, 0.024, 1, 0.018, 1, 0.024, 1, 0.018, 0.33, 0.024, 1 ]
+					},
+					{
+						"time": 0.0417,
+						"color": "ffffffff",
+						"curve": [ 0.121, 1, 0.212, 1, 0.121, 1, 0.212, 1, 0.121, 1, 0.212, 1, 0.121, 1, 0.212, 0.5 ]
+					},
+					{ "time": 0.2917, "color": "ffffff00" }
+				],
+				"attachment": [
+					{ "name": "warrant/explode_00006" }
+				]
+			},
+			"warColor2": {
+				"rgba": [
+					{ "color": "ffffff00" },
+					{ "time": 0.0833, "color": "ff000000" },
+					{ "time": 0.4167, "color": "ff0000ff" },
+					{ "time": 0.8333, "color": "ff000092" }
+				],
+				"attachment": [
+					{ "name": "symbols/indian/warColor" }
+				]
+			}
+		},
+		"bones": {
+			"sparks": {
+				"scale": [
+					{
+						"time": 0.0417,
+						"curve": [ 0.121, 1, 0.212, 2.55, 0.121, 1, 0.212, 2.55 ]
+					},
+					{ "time": 0.2917, "x": 3, "y": 3 }
+				]
+			},
+			"indianHead": {
+				"rotate": [
+					{ "time": 0.0417 },
+					{ "time": 0.125, "value": 4.4 }
+				]
+			},
+			"mainbone": {
+				"rotate": [
+					{ "time": 0.0417 },
+					{ "time": 0.0833, "value": -3.6 },
+					{ "time": 0.125, "value": 3.6 },
+					{ "time": 0.1667, "value": -2.4 },
+					{ "time": 0.2083 }
+				]
+			}
+		},
+		"attachments": {
+			"default": {
+				"burningEmber01": {
+					"vfx/burningEmber/burningEmber": {
+						"sequence": [
+							{ "time": 0.0417, "mode": "once", "delay": 0.0714 }
+						]
+					}
+				},
+				"indianBody": {
+					"symbols/indian/indianBody": {
+						"deform": [
+							{ "time": 0.0833 },
+							{
+								"time": 0.125,
+								"offset": 5,
+								"vertices": [ -8.77796, 0, -8.77796, 0, 0, 0, 0, 0, 7.79954, 0, 7.79954 ]
+							}
+						]
+					}
+				},
+				"smokeLight": {
+					"vfx/smoke/smokeLight": {
+						"sequence": [
+							{ "time": 0.2083, "mode": "once", "delay": 0.0556 }
+						]
+					}
+				},
+				"smokeLight00": {
+					"vfx/smoke/smokeLight": {
+						"sequence": [
+							{ "time": 0.125, "mode": "once", "delay": 0.0631 },
+							{ "time": 1, "mode": "once", "index": 12, "delay": 0.0833 }
+						]
+					}
+				},
+				"smokeLight01": {
+					"vfx/smoke/smokeLight": {
+						"sequence": [
+							{ "time": 0.125, "mode": "once", "delay": 0.0631 },
+							{ "time": 1, "mode": "once", "index": 12, "delay": 0.0833 }
+						]
+					}
+				}
+			}
+		}
+	},
+	"symbolWinLoop": {
+		"slots": {
+			"backgroundIndian": {
+				"rgba": [
+					{
+						"color": "666666ff",
+						"curve": [ 0.25, 0.4, 0.5, 0.13, 0.25, 0.4, 0.5, 0.13, 0.25, 0.4, 0.5, 0.13, 0.25, 1, 0.5, 1 ]
+					},
+					{
+						"time": 0.75,
+						"color": "202020ff",
+						"curve": [ 1, 0.13, 1.25, 0.4, 1, 0.13, 1.25, 0.4, 1, 0.13, 1.25, 0.4, 1, 1, 1.25, 1 ]
+					},
+					{ "time": 1.5, "color": "666666ff" }
+				]
+			},
+			"bloodSplatter4": {
+				"rgba": [
+					{ "color": "ffffff00", "curve": "stepped" },
+					{
+						"time": 0.0417,
+						"color": "ffffff00",
+						"curve": [ 0.139, 1, 0.236, 1, 0.139, 1, 0.236, 1, 0.139, 1, 0.236, 1, 0.139, 0, 0.236, 1 ]
+					},
+					{ "time": 0.3333, "color": "ffffffff", "curve": "stepped" },
+					{
+						"time": 1,
+						"color": "ffffffff",
+						"curve": [ 1.153, 1, 1.306, 1, 1.153, 1, 1.306, 1, 1.153, 1, 1.306, 1, 1.153, 1, 1.306, 0 ]
+					},
+					{ "time": 1.4583, "color": "ffffff00" }
+				],
+				"attachment": [
+					{ "name": "symbols/symbolBloodSplatter/bloodSplatter1" }
+				]
+			},
+			"flash2": {
+				"rgba": [
+					{
+						"color": "fe9a0000",
+						"curve": [ 0.25, 1, 0.5, 1, 0.25, 0.6, 0.5, 0.72, 0.25, 0, 0.5, 0.3, 0.25, 0, 0.5, 1 ]
+					},
+					{
+						"time": 0.75,
+						"color": "ffb84cff",
+						"curve": [ 1, 1, 1.25, 1, 1, 0.72, 1.25, 0.6, 1, 0.3, 1.25, 0, 1, 1, 1.25, 0 ]
+					},
+					{ "time": 1.5, "color": "fe9a0000" }
+				],
+				"attachment": [
+					{ "name": "warrant/flash" }
+				]
+			},
+			"indianBody": {
+				"rgba": [
+					{
+						"color": "666666ff",
+						"curve": [ 0.25, 0.4, 0.5, 1, 0.25, 0.4, 0.5, 1, 0.25, 0.4, 0.5, 1, 0.25, 1, 0.5, 1 ]
+					},
+					{
+						"time": 0.75,
+						"color": "ffffffff",
+						"curve": [ 1, 1, 1.25, 0.4, 1, 1, 1.25, 0.4, 1, 1, 1.25, 0.4, 1, 1, 1.25, 1 ]
+					},
+					{ "time": 1.5, "color": "666666ff" }
+				]
+			},
+			"indianHead": {
+				"attachment": [
+					{}
+				]
+			},
+			"indianHeadShot2": {
+				"rgba": [
+					{
+						"color": "666666ff",
+						"curve": [ 0.25, 0.4, 0.5, 1, 0.25, 0.4, 0.5, 1, 0.25, 0.4, 0.5, 1, 0.25, 1, 0.5, 1 ]
+					},
+					{
+						"time": 0.75,
+						"color": "ffffffff",
+						"curve": [ 1, 1, 1.25, 0.4, 1, 1, 1.25, 0.4, 1, 1, 1.25, 0.4, 1, 1, 1.25, 1 ]
+					},
+					{ "time": 1.5, "color": "666666ff" }
+				],
+				"attachment": [
+					{ "name": "symbols/indian/indianHeadShot" }
+				]
+			},
+			"overlayIndian": {
+				"rgba": [
+					{ "color": "666666ff" }
+				]
+			},
+			"warColor2": {
+				"rgba": [
+					{
+						"color": "ff000000",
+						"curve": [ 0.25, 1, 0.5, 1, 0.25, 0, 0.5, 0, 0.25, 0, 0.5, 0, 0.25, 0, 0.5, 0.57 ]
+					},
+					{
+						"time": 0.75,
+						"color": "ff000092",
+						"curve": [ 1, 1, 1.25, 1, 1, 0, 1.25, 0, 1, 0, 1.25, 0, 1, 0.57, 1.25, 0 ]
+					},
+					{ "time": 1.5, "color": "ff000000" }
+				],
+				"attachment": [
+					{ "name": "symbols/indian/warColor" }
+				]
+			}
+		},
+		"attachments": {
+			"default": {
+				"indianBody": {
+					"symbols/indian/indianBody": {
+						"deform": [
+							{
+								"offset": 5,
+								"vertices": [ -8.77796, 0, -8.77796, 0, 0, 0, 0, 0, 7.79954, 0, 7.79954 ]
+							}
+						]
+					}
+				}
+			}
+		}
+	}
+}
+}

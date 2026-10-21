@@ -1,14 +1,20 @@
 # tabula-tools
 
-Build tools for [tabula-pixi](../tabula-pixi): the headless export engine
-(compile, bake, repack, KTX2, fonts), the `tabula` CLI, the Tabula app and
-its desktop (Electron) shell.
+Build tools for tabula-pixi: the headless export engine
+(compile, bake, repack, KTX2, fonts), the `tabula` CLI, the Tabula app (read and
+export a project folder) and its desktop (Electron) shell, and the Tabula
+Viewer (`packages/viewer`).
+
+Studio exports for now: Tabula Studio is the source of truth for the export and
+its package layout. The export here is kept but not developed further until the
+two are reconciled.
 
 ```
 src/export/   engine, the package's main entry (import from 'tabula-tools')
 src/cli/      tabula CLI and the app server
 app/          Tabula app page
 desktop/      Electron shell
+packages/viewer/  Tabula Viewer (browser composer on tabula-pixi); see its README
 ```
 
 The engine never prints or exits: results, events and warnings go back to
@@ -22,24 +28,21 @@ How to recreate the export in another app (the logic, step by step):
 
 ## Development
 
-The engine imports `tabula-pixi/core/*`, so build tabula-pixi first. Tests, the app, the demo scripts and
-the Basis transcoder used by `tabula app` still use a tabula-pixi checkout next
-to this folder (linked as `file:../tabula-pixi`; build it first). tabula-pixi
-never imports these tools.
+The runtime comes from the published `tabula-pixi` package (pinned in
+`package.json`, as in tabula-studio): `pnpm install` is all it takes.
 
 ```sh
-npm install
-npm run build        # dist/
-npm test             # vitest, against ../tabula-pixi/src (no build needed)
-npm run typecheck    # against ../tabula-pixi/src
-npm run lint
-npm run docs         # docs/reference/export.md from the TSDoc
-npm run app          # app dev server on ../tabula-pixi/test-assets
-npm run desktop      # Electron app
-npm run report:ktx         # KTX2 encode quality (needs ktx)
-npm run report:drawcalls   # tabula-pixi demo scenes: exported vs repacked atlas draw calls
+pnpm install
+pnpm build        # dist/
+pnpm test             # vitest, against the installed tabula-pixi
+pnpm typecheck
+pnpm lint
+pnpm run docs     # docs/reference/export.md from the TSDoc (`run`: pnpm has its own `docs`)
+pnpm app          # app dev server on tests/assets
+pnpm desktop      # Electron app
+pnpm report:ktx         # KTX2 encode quality (needs ktx)
 ```
 
-Tests use `../tabula-pixi/test-assets`. Docs: [docs/app.md](docs/app.md),
+Tests use their own fixtures in `tests/assets`. Docs: [docs/app.md](docs/app.md),
 [docs/cli.md](docs/cli.md), [docs/reference/export.md](docs/reference/export.md);
-runtime docs are in `../tabula-pixi/docs/api/`.
+runtime docs are in the tabula-pixi repository (`docs/api/`).

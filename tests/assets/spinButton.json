@@ -1,0 +1,147 @@
+{
+"skeleton": { "hash": "KYuxczEfHe4", "spine": "4.1-from-4.2.43", "x": -146.5, "y": -146, "width": 293, "height": 292 },
+"bones": [
+	{ "name": "root" },
+	{ "name": "group", "parent": "root" },
+	{ "name": "spin", "parent": "group" },
+	{ "name": "spinBG", "parent": "group" }
+],
+"slots": [
+	{ "name": "spinBG", "bone": "spinBG", "attachment": "ui_buttons/spinBG" },
+	{ "name": "arrowsBlurred", "bone": "spin" },
+	{ "name": "arrows", "bone": "spin", "attachment": "ui_buttons/arrows" }
+],
+"skins": [
+	{
+		"name": "default",
+		"attachments": {
+			"arrows": {
+				"ui_buttons/arrows": { "width": 149, "height": 173 }
+			},
+			"arrowsBlurred": {
+				"ui_buttons/arrowsBlurred": { "width": 149, "height": 173 }
+			},
+			"spinBG": {
+				"ui_buttons/spinBG": { "width": 293, "height": 292 }
+			}
+		}
+	}
+],
+"animations": {
+	"spin": {
+		"slots": {
+			"arrows": {
+				"rgba": [
+					{ "time": 0.1667, "color": "ffffffff" },
+					{ "time": 0.2083, "color": "ffffff00", "curve": "stepped" },
+					{ "time": 0.4167, "color": "ffffff00" },
+					{ "time": 0.5, "color": "ffffffff" }
+				]
+			},
+			"arrowsBlurred": {
+				"rgba": [
+					{ "color": "ffffff00", "curve": "stepped" },
+					{ "time": 0.125, "color": "ffffff00" },
+					{ "time": 0.2083, "color": "ffffffff", "curve": "stepped" },
+					{ "time": 0.4583, "color": "ffffffff" },
+					{ "time": 0.5, "color": "ffffff00" }
+				],
+				"attachment": [
+					{ "name": "ui_buttons/arrowsBlurred" }
+				]
+			}
+		},
+		"bones": {
+			"spin": {
+				"rotate": [
+					{
+						"curve": [ 0.031, -0.05, 0.056, 10.03 ]
+					},
+					{
+						"time": 0.0833,
+						"value": 10.03,
+						"curve": [ 0.097, 10.03, 0.111, 10.03 ]
+					},
+					{
+						"time": 0.125,
+						"value": 8.4,
+						"curve": [ 0.153, 5.14, 0.188, -18.17 ]
+					},
+					{
+						"time": 0.2083,
+						"value": -41.93,
+						"curve": [ 0.222, -58.64, 0.262, -137.64 ]
+					},
+					{
+						"time": 0.2917,
+						"value": -225.45,
+						"curve": [ 0.313, -288.65, 0.324, -315.54 ]
+					},
+					{
+						"time": 0.3333,
+						"value": -333.7,
+						"curve": [ 0.344, -354.63, 0.361, -377.49 ]
+					},
+					{
+						"time": 0.375,
+						"value": -383.93,
+						"curve": [ 0.388, -390.17, 0.403, -392.02 ]
+					},
+					{
+						"time": 0.4167,
+						"value": -392.02,
+						"curve": [ 0.431, -392.02, 0.445, -389.01 ]
+					},
+					{
+						"time": 0.4583,
+						"value": -381.27,
+						"curve": [ 0.484, -366.18, 0.479, -358.92 ]
+					},
+					{ "time": 0.5, "value": -358.92 }
+				]
+			},
+			"group": {
+				"scale": [
+					{
+						"curve": [ 0.033, 0.895, 0.048, 0.802, 0.033, 0.895, 0.048, 0.802 ]
+					},
+					{
+						"time": 0.125,
+						"x": 0.8,
+						"y": 0.8,
+						"curve": [ 0.194, 0.798, 0.291, 1.017, 0.194, 0.798, 0.291, 1.017 ]
+					},
+					{
+						"time": 0.3333,
+						"x": 1.07,
+						"y": 1.07,
+						"curve": [ 0.345, 1.086, 0.361, 1.102, 0.344, 1.084, 0.362, 1.102 ]
+					},
+					{
+						"time": 0.375,
+						"x": 1.104,
+						"y": 1.104,
+						"curve": [ 0.388, 1.107, 0.403, 1.11, 0.389, 1.107, 0.403, 1.11 ]
+					},
+					{
+						"time": 0.4167,
+						"x": 1.103,
+						"y": 1.103,
+						"curve": [ 0.447, 1.088, 0.474, 1.057, 0.447, 1.088, 0.474, 1.057 ]
+					},
+					{ "time": 0.5 }
+				]
+			}
+		}
+	},
+	"spinIdle": {
+		"slots": {
+			"arrowsBlurred": {
+				"rgba": [
+					{ "color": "ffffff00" }
+				]
+			}
+		}
+	}
+}
+}

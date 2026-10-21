@@ -10,6 +10,4 @@ contextBridge.exposeInMainWorld('tabula', {
   openFolder: () => ipcRenderer.invoke('tabula:open-folder'),
   pathForFile: (file) => webUtils.getPathForFile(file),
   onProjectOpened: (callback) => ipcRenderer.on('project-opened', (_event, dir) => callback(dir)),
-  /** Slow the page's CPU down `rate` times (1 = off), like a weak phone (Chromium's CPU throttling). */
-  setCpuThrottle: (rate) => ipcRenderer.invoke('tabula:cpu-throttle', rate),
 });

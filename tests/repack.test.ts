@@ -21,7 +21,7 @@ import type { DrawSink } from 'tabula-pixi/core/renderer.js';
 import { Clip } from 'tabula-pixi/core/clip.js';
 import { RecordingSink, resolverFor, skeletonFrom } from './helpers.js';
 
-const ASSETS = fileURLToPath(new URL('../../tabula-pixi/test-assets/', import.meta.url));
+const ASSETS = fileURLToPath(new URL('./assets/', import.meta.url));
 const OPTIONS: RepackOptions = { maxSize: 2048, padding: 2, extrude: 0, rotation: true, powerOfTwo: true, extension: 'png' };
 
 /** Deterministic noise image. */

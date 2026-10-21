@@ -2,20 +2,9 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": true,
-    "rootDir": "..",
+    "rootDir": ".",
     "declaration": false,
-    "declarationMap": false,
-    "paths": {
-      "tabula-pixi": [
-        "../tabula-pixi/src/pixi-v7/index.ts"
-      ],
-      "tabula-pixi/json": [
-        "../tabula-pixi/src/pixi-v7/json.ts"
-      ],
-      "tabula-pixi/core/*": [
-        "../tabula-pixi/src/core/*"
-      ]
-    }
+    "declarationMap": false
   },
   "include": [
     "src/**/*",

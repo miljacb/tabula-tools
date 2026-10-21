@@ -35,32 +35,7 @@
   </section>
   <main>
     <aside id="assets" aria-label="Assets"></aside>
-    <section id="preview-pane">
-      <div class="toolbar">
-        <label>Animation <select id="animation"></select></label>
-        <label>Show
-          <select id="mode">
-            <option value="both">Source and exported</option>
-            <option value="source">Source (JSON)</option>
-            <option value="exported">Exported</option>
-            <option value="scene">Scene (performance)</option>
-          </select>
-        </label>
-        <label class="scene-only" title="How many skeletons the scene draws: the selected one's page set, repeated">Count
-          <select id="scene-count"><option>9</option><option selected>15</option><option>20</option><option>30</option><option>45</option></select>
-        </label>
-        <label class="scene-only" id="throttle-label" title="Slow the CPU down like a weak phone (desktop app)">Weak device
-          <select id="throttle"><option value="1">Off</option><option value="4">CPU 4× slower</option><option value="6">CPU 6× slower</option></select>
-        </label>
-        <label title="The tier the game would load. The game picks it; this previews each.">Tier <select id="tier"></select></label>
-        <label title="Load KTX2 pages (GPU-compressed) where the export has them"><input type="checkbox" id="ktx2" checked> KTX2</label>
-      </div>
-      <div id="stage">
-        <div class="stage-label left" id="label-left"></div>
-        <div class="stage-label right" id="label-right"></div>
-        <div id="stage-empty" class="muted">Select an asset</div>
-        <div id="stats" hidden></div>
-      </div>
+    <section id="detail-pane">
       <div id="details"></div>
     </section>
     <aside id="side">
