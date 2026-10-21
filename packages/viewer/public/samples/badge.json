@@ -1,0 +1,66 @@
+{
+  "skeleton": {
+    "hash": "sample-badge",
+    "spine": "4.2.0",
+    "x": -24,
+    "y": -24,
+    "width": 48,
+    "height": 48
+  },
+  "bones": [
+    {
+      "name": "root"
+    },
+    {
+      "name": "bob",
+      "parent": "root",
+      "y": 8
+    }
+  ],
+  "slots": [
+    {
+      "name": "badge",
+      "bone": "bob",
+      "attachment": "badge"
+    }
+  ],
+  "skins": [
+    {
+      "name": "default",
+      "attachments": {
+        "badge": {
+          "badge": {
+            "width": 48,
+            "height": 48
+          }
+        }
+      }
+    },
+    {
+      "name": "plain",
+      "attachments": {}
+    }
+  ],
+  "animations": {
+    "bob": {
+      "bones": {
+        "bob": {
+          "translate": [
+            {
+              "time": 0,
+              "y": 0
+            },
+            {
+              "time": 0.4,
+              "y": 10
+            },
+            {
+              "time": 0.8,
+              "y": 0
+            }
+          ]
+        }
+      }
+    }
+  }
+}
