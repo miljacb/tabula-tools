@@ -2,8 +2,8 @@ import { EXPORT_WEIGHT, RUNTIME_WEIGHT } from './types.js';
 
 /** @typedef {import('./types.js').HealthFinding} HealthFinding */
 
-const PENALTY = { info: 0, pass: 0, warn: 5, fail: 15 };
-const CATEGORY_CAP = 30;
+export const PENALTY = { info: 0, pass: 0, warn: 5, fail: 15 };
+export const CATEGORY_CAP = 30;
 
 /**
  * @param {HealthFinding[]} findings

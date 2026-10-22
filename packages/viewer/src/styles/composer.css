@@ -208,11 +208,7 @@ select {
   color: var(--text);
 }
 
-.dock #scene-panel.is-focused,
-.dock #slots-panel.is-focused,
-.dock #skins-panel.is-focused,
 .dock #animations-panel.is-focused,
-.dock #bones-panel.is-focused,
 .dock #performance-panel.is-focused {
   outline: none;
   border-color: var(--accent);
@@ -221,18 +217,14 @@ select {
 
 .dock .collapsible-panel,
 .dock #scene-panel,
-.dock #slots-panel,
-.dock #bones-panel,
 .dock #performance-panel,
-.dock #skins-panel,
 .dock #animations-panel,
 .dock #transform-all-panel {
   padding: 0 !important;
   overflow: hidden;
 }
 
-.dock .panel-header,
-.dock #slots-header {
+.dock .panel-header {
   display: flex !important;
   align-items: center;
   gap: 6px;
@@ -255,9 +247,6 @@ select {
   min-width: 0;
 }
 
-.dock #slots-header-actions {
-  gap: 0;
-}
 
 .dock #btn-mask-color {
   width: 28px;
@@ -266,8 +255,7 @@ select {
   border-left: 1px solid #222;
 }
 
-.dock .header-title,
-.dock #slots-title {
+.dock .header-title {
   margin: 0;
   flex: 0 0 auto;
   max-width: 46%;
@@ -309,10 +297,7 @@ select {
 }
 
 .dock .collapsible-panel.is-collapsed,
-.dock #slots-panel.is-collapsed,
-.dock #skins-panel.is-collapsed,
 .dock #animations-panel.is-collapsed,
-.dock #bones-panel.is-collapsed,
 .dock #performance-panel.is-collapsed,
 .dock #scene-panel.is-collapsed {
   max-height: none !important;
@@ -617,63 +602,15 @@ select {
   cursor: default;
 }
 
-#btn-play[hidden],
-#btn-pause[hidden] {
-  display: none;
-}
 
-#slots-list .slot-row {
-  align-items: center;
-  gap: 2px;
-}
 
-#slots-list .slot-name {
-  flex: 1;
-  min-width: 0;
-}
 
-#slots-list .slot-eye {
-  flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.12s ease;
-}
 
-#slots-list .slot-row:hover .slot-eye,
-#slots-list .slot-row.is-slot-hidden .slot-eye {
-  opacity: 1;
-}
 
-#slots-list .slot-eye:hover {
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.08);
-}
 
-#slots-list .slot-eye .eye-off {
-  display: none;
-}
 
-#slots-list .slot-row.is-slot-hidden .slot-eye .eye-open {
-  display: none;
-}
 
-#slots-list .slot-row.is-slot-hidden .slot-eye .eye-off {
-  display: block;
-}
 
-#slots-list .slot-row.is-slot-hidden .slot-name {
-  color: var(--faint);
-  text-decoration: line-through;
-}
 
 .stage-card {
   position: relative;
@@ -860,8 +797,7 @@ select {
   font-size: 12px;
 }
 
-.dock .header-title,
-.dock #slots-title {
+.dock .header-title {
   color: #ccc;
   font-size: 0.75rem;
   font-weight: 600;
@@ -873,8 +809,6 @@ select {
   padding: 0 4px;
 }
 
-.dock #slots-list .slot-name.is-selected,
-.dock #bones-list li button.is-selected,
 .dock #scene-list li.is-selected .scene-name {
   background: rgba(210, 255, 0, 0.16);
   color: var(--accent);
@@ -901,9 +835,6 @@ select {
 }
 
 #scene-list,
-#slots-list,
-#bones-list,
-#skins-list,
 #animations-list {
   max-height: 300px;
   overflow-y: auto;
@@ -939,17 +870,11 @@ select {
 }
 
 #scene-list::-webkit-scrollbar,
-#slots-list::-webkit-scrollbar,
-#bones-list::-webkit-scrollbar,
-#skins-list::-webkit-scrollbar,
 #animations-list::-webkit-scrollbar {
   width: 6px;
 }
 
 #scene-list::-webkit-scrollbar-thumb,
-#slots-list::-webkit-scrollbar-thumb,
-#bones-list::-webkit-scrollbar-thumb,
-#skins-list::-webkit-scrollbar-thumb,
 #animations-list::-webkit-scrollbar-thumb {
   background: #646464;
   border-radius: 3px;
@@ -1111,11 +1036,6 @@ select {
   padding: 0;
 }
 
-#scene-list li {
-  display: block;
-  margin: 0 0 2px;
-  border-radius: 4px;
-}
 
 .scene-row-main {
   display: flex;
@@ -1223,7 +1143,7 @@ select {
 
 #hover-tip {
   position: fixed;
-  z-index: 80;
+  z-index: 200; /* above modals (90) */
   max-width: 220px;
   padding: 4px 6px;
   background: #111;
@@ -1234,51 +1154,20 @@ select {
   font-weight: 400;
   line-height: 1.35;
   pointer-events: none;
+  white-space: pre-line;
 }
 
 #hover-tip[hidden] {
   display: none !important;
 }
 
-#animations-panel #stage-animations {
-  margin-top: 0;
-  padding-top: 0;
-  border-top: 0;
-  max-height: 0;
-  opacity: 0;
-  overflow: hidden;
-  pointer-events: none;
-  transition: opacity 0.12s ease, max-height 0.15s ease, margin 0.12s ease, padding 0.12s ease;
-}
 
-#animations-panel:hover #stage-animations,
-#animations-panel.is-focused #stage-animations {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--line);
-  max-height: 48px;
-  opacity: 1;
-  pointer-events: auto;
-}
 
 .stage-anim {
   border-radius: 0;
 }
 
-.stage-global-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  color: var(--accent);
-  flex-shrink: 0;
-}
 
-.stage-global-mark.is-off {
-  color: var(--faint);
-  opacity: 0.75;
-}
 
 .stage-anim.is-off .anim-item-name {
   color: var(--faint);
@@ -1538,7 +1427,8 @@ select {
 
 #package-modal form {
   width: min(520px, calc(100% - 32px));
-  max-height: calc(100% - 48px);
+  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
   display: flex;
   flex-direction: column;
   background: var(--panel);
@@ -1587,6 +1477,7 @@ select {
 .package-list {
   overflow: auto;
   min-height: 80px;
+  flex: 1 1 auto;
   border: 1px solid var(--line);
   border-radius: var(--radius);
 }
@@ -1687,401 +1578,6 @@ select {
   color: #e85d6c;
   font-size: 13px;
   line-height: 1;
-}
-
-.health-th-tip {
-  cursor: help;
-  text-decoration: underline dotted rgba(255, 255, 255, 0.2);
-  text-underline-offset: 2px;
-}
-
-.health-table thead .health-th-tip:hover {
-  color: var(--text);
-}
-
-.health-dialog-wide {
-  width: min(920px, calc(100vw - 32px));
-  max-height: min(90vh, 820px);
-}
-
-.health-body {
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
-  padding: 12px 14px 16px;
-}
-
-.health-modal .manual-dialog {
-  max-height: min(90vh, 820px);
-}
-
-.health-detail-header {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: start;
-  gap: 8px;
-}
-
-.health-back-btn {
-  width: 28px;
-  height: 28px;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  place-items: center;
-  background: var(--raised);
-  border: 0;
-  border-radius: 6px;
-  color: var(--text);
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.health-back-btn:hover {
-  background: #3a3a3a;
-  color: var(--text);
-}
-
-.health-back-btn[hidden] {
-  display: none;
-}
-
-.health-modal-footer {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-  padding: 10px 14px;
-  border-top: 1px solid var(--line);
-  background: var(--panel-2);
-}
-
-.health-modal-footer button {
-  background: var(--raised);
-  color: var(--text);
-  border: 0;
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-weight: 600;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.health-modal-footer button:hover {
-  background: #3a3a3a;
-  color: var(--text);
-}
-
-.health-score-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.health-score-card {
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid hsl(calc(var(--health-hue, 80) * 1deg) 40% 28%);
-  background: hsl(calc(var(--health-hue, 80) * 1deg) 32% 12%);
-  text-align: center;
-  cursor: help;
-}
-
-.health-score-card-overall {
-  grid-column: span 1;
-}
-
-.health-score-card-label {
-  display: block;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--faint);
-  margin-bottom: 4px;
-}
-
-.health-score-card-value {
-  display: block;
-  font-size: 1.5rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: hsl(calc(var(--health-hue, 80) * 1deg) 72% 72%);
-  line-height: 1.1;
-}
-
-.health-score-card-band {
-  display: block;
-  margin-top: 2px;
-  font-size: 10px;
-  color: var(--muted);
-  text-transform: uppercase;
-}
-
-.health-inline-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 2.35rem;
-  height: 22px;
-  padding: 0 6px;
-  border-radius: 5px;
-  border: 1px solid hsl(calc(var(--health-hue, 0) * 1deg) 45% 32%);
-  background: hsl(calc(var(--health-hue, 0) * 1deg) 38% 16%);
-  color: hsl(calc(var(--health-hue, 0) * 1deg) 75% 78%);
-  font-size: 11px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.health-inline-chip.is-unknown {
-  border-color: var(--line-strong);
-  background: var(--bg);
-  color: var(--faint);
-}
-
-.health-hint {
-  font-size: 0.75rem;
-  color: var(--faint);
-  margin: 0 0 10px;
-  line-height: 1.45;
-}
-
-.health-section h3 {
-  margin: 14px 0 8px;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--faint);
-}
-
-.health-issues {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.health-issues-compact .health-issue-detail {
-  display: none;
-}
-
-.health-issue {
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--panel-2);
-  cursor: help;
-}
-
-.health-issue-fail {
-  border-color: hsl(0 50% 38%);
-  background: hsl(0 35% 10%);
-}
-
-.health-issue-warn {
-  border-color: hsl(38 55% 38%);
-  background: hsl(38 40% 10%);
-}
-
-.health-issue-info {
-  border-color: var(--line-strong);
-}
-
-.health-issue-pass {
-  border-color: var(--line);
-  opacity: 0.9;
-}
-
-.health-issue-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-
-.health-issue-level {
-  flex-shrink: 0;
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: var(--raised);
-  color: var(--faint);
-}
-
-.health-issue-fail .health-issue-level {
-  background: hsl(0 50% 22%);
-  color: hsl(0 75% 78%);
-}
-
-.health-issue-warn .health-issue-level {
-  background: hsl(38 50% 20%);
-  color: hsl(38 80% 72%);
-}
-
-.health-issue-title {
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.health-issue-detail {
-  margin: 0;
-  font-size: 0.78rem;
-  line-height: 1.45;
-  color: var(--muted);
-}
-
-.health-passed {
-  margin: 12px 0;
-  font-size: 0.78rem;
-  color: var(--faint);
-}
-
-.health-table-wrap {
-  overflow-x: hidden;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel-2);
-}
-
-.health-table {
-  width: 100%;
-  table-layout: fixed;
-  border-collapse: collapse;
-  font-size: 12px;
-}
-
-.health-table.manual-table th,
-.health-table.manual-table td {
-  width: auto;
-  padding: 5px 6px;
-  text-align: left;
-  border-bottom: 1px solid var(--line);
-  vertical-align: middle;
-}
-
-.health-table thead th {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--faint);
-  background: rgba(0, 0, 0, 0.15);
-  white-space: nowrap;
-}
-
-.health-table tbody tr:last-child td {
-  border-bottom: 0;
-}
-
-.health-list-table tr[data-id] {
-  cursor: pointer;
-}
-
-.health-list-table tr[data-id]:hover td {
-  background: rgba(210, 255, 0, 0.06);
-}
-
-.health-cell-name {
-  font-weight: 600;
-  color: var(--text);
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.health-issues-cell {
-  font-size: 11px;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-.health-export-cell {
-  white-space: normal;
-  vertical-align: middle;
-}
-
-.health-export-cell[data-tip],
-.health-inline-chip[data-tip] {
-  cursor: help;
-}
-
-.health-tags {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  flex-wrap: wrap;
-}
-
-.health-export-none {
-  color: var(--faint);
-}
-
-.health-num-cell {
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.health-score-cell-wrap {
-  white-space: nowrap;
-}
-
-.health-tag {
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 4px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.health-tag-fail {
-  background: hsl(0 45% 18%);
-  color: hsl(0 70% 72%);
-}
-
-.health-tag-warn {
-  background: hsl(38 45% 16%);
-  color: hsl(38 75% 68%);
-}
-
-.health-scene-vram {
-  margin: 0 0 12px;
-  padding: 10px 12px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--muted);
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 8px;
-  border: 1px solid var(--line);
-}
-
-.health-scene-vram strong {
-  display: block;
-  margin-bottom: 4px;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--faint);
-}
-
-.health-pending {
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.health-atlas-cell {
-  font-size: 11px;
-  color: var(--muted);
-  white-space: nowrap;
 }
 
 .perf-memory-sub {

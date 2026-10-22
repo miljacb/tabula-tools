@@ -1,6 +1,6 @@
 # Tabula Viewer
 
-Browser composer for Tabula skeletons. Drop a Spine JSON export (4.1 or 4.2), its atlas and page images onto the canvas. Arrange several skeletons, snap their edges, and inspect slots, skins, animations, bones, draw calls and asset health.
+Browser composer for Tabula skeletons. Drop a Spine JSON export (4.1 or 4.2), its atlas and page images onto the canvas. Arrange several skeletons, snap their edges, and inspect each asset's bones, slots, attachments, skins, constraints, events and draw order in one outliner tree, plus animations, draw calls and asset health.
 
 Everything is drawn and played by [tabula-pixi](https://www.npmjs.com/package/tabula-pixi) on PixiJS 7: the same runtime a game uses, so what you see is what the game plays. There is no Spine runtime in this app.
 

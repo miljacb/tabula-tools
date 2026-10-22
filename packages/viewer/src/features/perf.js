@@ -1,6 +1,135 @@
+import { BatchCounter } from 'tabula-pixi/core/batching.js';
+import { SkeletonRenderer } from 'tabula-pixi/core/renderer.js';
+import { DEFAULT_MAX_TEXTURES } from 'tabula-pixi/core/shaders.js';
 import { attachmentKind, drawOrderSlots, regionOf } from '../tabula/geometry.js';
 
 const BLEND_NAMES = ['Normal', 'Additive', 'Multiply', 'Screen'];
+
+/** Shared like tabula-pixi's own; drawing allocates nothing after warm-up. */
+const skeletonRenderer = new SkeletonRenderer();
+
+/** Texture units per batch the counts assume: the renderer uses min(GPU units, 8). */
+let textureUnits = DEFAULT_MAX_TEXTURES;
+/** Units the GPU allows the renderer (set from the WebGL context once the stage exists). */
+let gpuTextureUnits = DEFAULT_MAX_TEXTURES;
+
+export function getTextureUnits() {
+  return textureUnits;
+}
+
+export function getGpuTextureUnits() {
+  return gpuTextureUnits;
+}
+
+/** @param {number} units GPU limit reported by the context; the renderer never uses more than 8. */
+export function setGpuTextureUnits(units) {
+  const next = Math.max(1, Math.min(DEFAULT_MAX_TEXTURES, Math.floor(units) || DEFAULT_MAX_TEXTURES));
+  if (textureUnits === gpuTextureUnits) textureUnits = next;
+  gpuTextureUnits = next;
+}
+
+/** @param {number} units simulate a device with fewer units (1 – GPU limit) */
+export function setTextureUnits(units) {
+  textureUnits = Math.max(1, Math.min(gpuTextureUnits, Math.floor(units) || gpuTextureUnits));
+}
+
+/**
+ * A DrawSink that counts like the renderer (BatchCounter) and also tallies what was drawn per blend mode.
+ * With `matrix`, positions go to world space first, so overlap between skeletons is judged like on screen.
+ */
+class CountingSink {
+  /** @param {number} units */
+  constructor(units) {
+    this.counter = new BatchCounter(units);
+    /** @type {Record<number, number>} */
+    this.blends = {};
+    /** @type {{ a: number, b: number, c: number, d: number, tx: number, ty: number } | null} */
+    this.matrix = null;
+    this.scratch = new Float64Array(512);
+  }
+
+  drawTriangles(texture, blendMode, positions, uvs, vertexCount, indices, indexCount, colors) {
+    this.blends[blendMode] = (this.blends[blendMode] || 0) + 1;
+    let pos = positions;
+    const m = this.matrix;
+    if (m) {
+      const n = vertexCount * 2;
+      if (this.scratch.length < n) this.scratch = new Float64Array(Math.max(n, this.scratch.length * 2));
+      pos = this.scratch;
+      for (let i = 0; i < n; i += 2) {
+        const x = positions[i];
+        const y = positions[i + 1];
+        pos[i] = m.a * x + m.c * y + m.tx;
+        pos[i + 1] = m.b * x + m.d * y + m.ty;
+      }
+    }
+    this.counter.drawTriangles(texture, blendMode, pos, uvs, vertexCount, indices, indexCount, colors);
+  }
+}
+
+/**
+ * Draw one view into `sink` the way ClipView does (clip tint × alpha).
+ * @param {any} view TabulaView
+ * @param {CountingSink} sink
+ * @param {number} alpha
+ */
+function drawView(view, sink, alpha) {
+  const tint = view.clip.tint;
+  skeletonRenderer.draw(view.clip.skeleton, view.asset.resolve, sink, { r: tint.r, g: tint.g, b: tint.b, a: tint.a * alpha }, view.clip.darkTint);
+}
+
+/** @param {CountingSink} sink */
+function finish(sink) {
+  sink.counter.flush();
+  const s = sink.counter.stats;
+  const blends = Object.entries(sink.blends)
+    .map(([mode, count]) => `${BLEND_NAMES[Number(mode)] || `Mode ${mode}`}: ${count}`)
+    .join(', ') || 'None';
+  return {
+    drawCalls: s.drawCalls,
+    vertices: s.vertices,
+    triangles: s.triangles,
+    textures: s.textures,
+    batchBreaks: { ...s.batchBreaks },
+    blends,
+  };
+}
+
+/**
+ * Exact draw statistics of one skeleton drawn alone, by the renderer's own batching rules.
+ * Null when the instance is not a tabula view (plain data in tests).
+ * @param {any} inst
+ * @param {number} [units]
+ */
+export function countInstanceDraws(inst, units = textureUnits) {
+  const view = inst?.spine;
+  if (!view?.clip?.skeleton || !view.asset?.resolve) return null;
+  const sink = new CountingSink(units);
+  sink.counter.breakSegment();
+  drawView(view, sink, 1);
+  return finish(sink);
+}
+
+/**
+ * Exact draw statistics of several skeletons drawn together in z-order, in world space,
+ * so skeletons batch with each other like they do on screen. Hidden instances are skipped.
+ * @param {any[]} instances
+ * @param {number} [units]
+ */
+export function countSceneDraws(instances, units = textureUnits) {
+  const sink = new CountingSink(units);
+  const ordered = [...instances].filter((i) => i.visible !== false).sort((a, b) => a.zIndex - b.zIndex);
+  for (const inst of ordered) {
+    const view = inst.spine;
+    if (!view?.clip?.skeleton || !view.asset?.resolve) continue;
+    const alpha = view.worldAlpha ?? 1;
+    if (!(alpha > 0) || view.worldVisible === false) continue;
+    sink.matrix = view.worldTransform ?? null;
+    sink.counter.breakSegment();
+    drawView(view, sink, alpha);
+  }
+  return finish(sink);
+}
 
 /**
  * @param {object | null | undefined} page
@@ -34,20 +163,36 @@ export function contentPageKey(page, base = baseOf(page)) {
 }
 
 /**
- * Pixi uploads WebP as uncompressed pixels. Power-of-two images also get a mip chain (~4/3).
+ * Pixi uploads WebP/PNG as uncompressed pixels. With mipmaps on, every level down to 1×1 is stored too;
+ * levels are summed exactly (each halves, rounding down, never below 1).
+ * Pixi 7 MIPMAP_MODES: 0 off, 1 power-of-two only, 2 on, 3 manual.
  * @param {object | null} base
  * @param {number} width
  * @param {number} height
  */
-function textureBytes(base, width, height) {
+export function textureBytes(base, width, height) {
+  // KTX2 / Basis pages: Pixi's CompressedTextureResource holds every uploaded level; its bytes are the GPU size.
+  const levels = base?.resource?._levelBuffers;
+  if (Array.isArray(levels) && levels.length) {
+    const bytes = levels.reduce((sum, level) => sum + (level.levelBuffer?.byteLength || 0), 0);
+    return { bytes, mips: levels.length > 1, compressed: true };
+  }
   const format = base?.format;
   const bpp = format === 6407 ? 3 : format === 6406 || format === 6409 || format === 6403 ? 1 : format === 6410 || format === 33319 ? 2 : 4;
-  let bytes = width * height * bpp;
   const mode = base?.mipmap;
   const pot = width > 0 && height > 0 && (width & (width - 1)) === 0 && (height & (height - 1)) === 0;
   const mips = mode >= 2 || (mode === 1 && pot);
-  if (mips) bytes = Math.round(bytes * 4 / 3);
-  return { bytes, mips };
+  let pixels = width * height;
+  if (mips) {
+    let w = width;
+    let h = height;
+    while (w > 1 || h > 1) {
+      w = Math.max(1, w >> 1);
+      h = Math.max(1, h >> 1);
+      pixels += w * h;
+    }
+  }
+  return { bytes: pixels * bpp, mips, compressed: false };
 }
 
 /** @param {...unknown} values */
@@ -60,12 +205,13 @@ function firstSize(...values) {
 }
 
 /**
- * @param {{ spine: { skeleton: any, atlas?: any }, atlas?: any }} inst
+ * Atlas pages of one instance with their GPU size. Cheap: no skeleton walk, so memory-only callers
+ * (stage dedupe, marginal VRAM) do not pay for the exact draw count.
+ * @param {{ atlas?: any }} inst
  */
-export function measureInstance(inst) {
-  const skeleton = inst.spine.skeleton;
+export function measureAtlasPages(inst) {
   const atlas = inst.atlas;
-  /** @type {{ key: string, contentKey: string, label: string, bytes: number }[]} */
+  /** @type {{ key: string, contentKey: string, label: string, bytes: number, uploaded: boolean | null }[]} */
   const pages = [];
   if (atlas?.pages?.length) {
     for (let i = 0; i < atlas.pages.length; i++) {
@@ -73,17 +219,31 @@ export function measureInstance(inst) {
       const base = baseOf(page);
       const w = firstSize(base?.realWidth, base?.width, base?.resource?.width, page.width, page.texture?.width);
       const h = firstSize(base?.realHeight, base?.height, base?.resource?.height, page.height, page.texture?.height);
-      const { bytes, mips } = textureBytes(base, w, h);
+      const { bytes, mips, compressed } = textureBytes(base, w, h);
       const pageMb = (bytes / (1024 * 1024)).toFixed(2);
       const contentKey = contentPageKey(page, base) || `atlas:${i}:${w}x${h}`;
+      // Pixi 7 fills _glTextures on first draw; a page nothing has drawn yet holds no VRAM.
+      const gl = base?._glTextures;
+      const uploaded = gl ? Object.keys(gl).length > 0 : null;
       pages.push({
         key: pageKey(page) || contentKey,
         contentKey,
-        label: `${i + 1}: ${page.name || 'Page'} (${w}×${h}) ${pageMb} MB${mips ? ' +mips' : ''}`,
+        label: `${i + 1}: ${page.name || 'Page'} (${w}×${h}) ${pageMb} MB${compressed ? ' compressed' : ''}${mips ? ' incl. mips' : ''}${uploaded === false ? ' · not uploaded yet' : ''}`,
         bytes,
+        uploaded,
       });
     }
   }
+  return { pages, memoryBytes: pages.reduce((sum, page) => sum + page.bytes, 0) };
+}
+
+/**
+ * @param {{ spine: { skeleton: any, atlas?: any }, atlas?: any }} inst
+ */
+export function measureInstance(inst) {
+  const skeleton = inst.spine.skeleton;
+  const atlas = inst.atlas;
+  const { pages, memoryBytes } = measureAtlasPages(inst);
 
   let vertexCount = 0;
   let clippingCount = 0;
@@ -101,6 +261,7 @@ export function measureInstance(inst) {
     const slot = drawOrder[i];
     const attachment = slot.attachment;
     if (!attachment) continue;
+    if (slot.bone && slot.bone.active === false) continue;
     if (slot.color && slot.color.a === 0) continue;
     const kind = attachmentKind(attachment);
     if (kind === 'clip') {
@@ -125,6 +286,22 @@ export function measureInstance(inst) {
     }
   }
 
+  // Exact numbers from the renderer's own walk and batching (skips inactive bones, transparent slots,
+  // counts clipped vertices); the walk above stays as the fallback for plain data.
+  const exact = countInstanceDraws(inst);
+  let triangles = null;
+  let textureCount = null;
+  let batchBreaks = null;
+  let blendSummary = Object.entries(blendModes).filter(([, count]) => count > 0).map(([name, count]) => `${name}: ${count}`).join(', ') || 'None';
+  if (exact) {
+    vertexCount = exact.vertices;
+    drawCalls = exact.drawCalls;
+    triangles = exact.triangles;
+    textureCount = exact.textures;
+    batchBreaks = exact.batchBreaks;
+    blendSummary = exact.blends;
+  }
+
   const data = skeleton.data || {};
   const ikCount = (data.ikConstraints || skeleton.ikConstraints || []).length;
   const pathCount = (data.pathConstraints || skeleton.pathConstraints || []).length;
@@ -133,7 +310,7 @@ export function measureInstance(inst) {
 
   return {
     pages,
-    memoryBytes: pages.reduce((sum, page) => sum + page.bytes, 0),
+    memoryBytes,
     pageInfo: pages.map((page) => page.label),
     vertexCount,
     drawCalls,
@@ -147,7 +324,12 @@ export function measureInstance(inst) {
     ].filter(Boolean).join(', '),
     clippingCount,
     clippingVertexCount,
-    blends: Object.entries(blendModes).filter(([, count]) => count > 0).map(([name, count]) => `${name}: ${count}`).join(', ') || 'None',
+    blends: blendSummary,
+    /** Null when counted by the fallback walk. */
+    triangles,
+    textures: textureCount,
+    batchBreaks,
+    exact: !!exact,
   };
 }
 
@@ -198,7 +380,7 @@ export function sumPerf(rows) {
 }
 
 /**
- * @param {ReturnType<typeof measureInstance>[]} rows
+ * @param {{ pages: { key: string, contentKey: string, label: string, bytes: number }[] }[]} rows
  */
 export function sumAtlasByContentKey(rows) {
   const seen = new Set();
@@ -218,31 +400,43 @@ export function sumAtlasByContentKey(rows) {
 }
 
 /**
- * Atlas bytes for one instance that are not already contributed by earlier instances on the stage (by content key).
+ * What one skeleton's atlas costs on top of the skeletons below it in z-order.
+ * Pages are compared by GPU texture: the same texture object costs nothing again (`shared`),
+ * while the same image file uploaded a second time (separate import) costs its full size again (`duplicate`).
  * @param {import('../app/sceneStore.js').SpineInstance} inst
  * @param {import('../app/sceneStore.js').SpineInstance[]} instances
  */
 export function marginalAtlasBytesForInstance(inst, instances) {
   const ordered = [...instances].sort((a, b) => a.zIndex - b.zIndex);
+  const priorGpu = new Set();
   const priorContent = new Set();
-  const perf = measureInstance(inst);
+  const perf = measureAtlasPages(inst);
   const localBytes = perf.memoryBytes;
   let marginalBytes = 0;
   let sharedPageCount = 0;
+  let duplicatePageCount = 0;
+  let duplicateBytes = 0;
 
   let found = false;
   for (const item of ordered) {
-    const row = item.id === inst.id ? perf : measureInstance(item);
+    const row = item.id === inst.id ? perf : measureAtlasPages(item);
     if (item.id === inst.id) {
       found = true;
       for (const page of row.pages) {
-        const ck = page.contentKey || page.key;
-        if (priorContent.has(ck)) sharedPageCount += 1;
-        else marginalBytes += page.bytes;
+        if (priorGpu.has(page.key)) {
+          sharedPageCount += 1;
+          continue;
+        }
+        marginalBytes += page.bytes;
+        if (priorContent.has(page.contentKey || page.key)) {
+          duplicatePageCount += 1;
+          duplicateBytes += page.bytes;
+        }
       }
       break;
     }
     for (const page of row.pages) {
+      priorGpu.add(page.key);
       priorContent.add(page.contentKey || page.key);
     }
   }
@@ -252,9 +446,14 @@ export function marginalAtlasBytesForInstance(inst, instances) {
 
   return {
     localBytes,
+    /** Bytes this skeleton adds to GPU memory (new textures, including duplicate uploads). */
     marginalBytes,
     pageCount: perf.pages.length,
+    /** Pages that are the same GPU texture as a lower skeleton's: free. */
     sharedPageCount,
+    /** Pages whose image file is already on the GPU from another import: uploaded again, wasted. */
+    duplicatePageCount,
+    duplicateBytes,
   };
 }
 
@@ -262,18 +461,22 @@ export function marginalAtlasBytesForInstance(inst, instances) {
  * @param {import('../app/sceneStore.js').SpineInstance[]} instances
  */
 export function sceneAtlasMemorySummary(instances) {
-  const rows = instances.map((item) => measureInstance(item));
-  const gpu = sumPerf(rows);
+  const rows = instances.map((item) => measureAtlasPages(item));
+  /** @type {Map<string, number>} */
+  const gpu = new Map();
+  for (const row of rows) for (const page of row.pages) if (!gpu.has(page.key)) gpu.set(page.key, page.bytes);
   const byContent = sumAtlasByContentKey(rows);
   return {
     instanceCount: instances.length,
     /** Unique GPU textures (same upload / shared atlas object). */
-    gpuUniqueBytes: gpu.memoryBytes,
-    gpuUniquePageCount: gpu.pageInfo.length,
+    gpuUniqueBytes: [...gpu.values()].reduce((sum, bytes) => sum + bytes, 0),
+    gpuUniquePageCount: gpu.size,
     /** Unique atlas image files on stage (name + size), even if uploaded multiple times. */
     contentUniqueBytes: byContent.memoryBytes,
     contentUniquePageCount: byContent.pageCount,
     /** Sum per skeleton without deduplication — upper bound if every import uploads separately. */
     stackedBytes: rows.reduce((sum, row) => sum + row.memoryBytes, 0),
+    /** Unique textures nothing has drawn yet (Pixi uploads on first draw). */
+    notUploadedPageCount: new Set(rows.flatMap((row) => row.pages.filter((p) => p.uploaded === false).map((p) => p.key))).size,
   };
 }

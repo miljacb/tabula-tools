@@ -19,13 +19,15 @@ src/tabula/groupFiles.js    drop grouping by skeleton stem
 src/tabula/skeletonAccess.js  track entry and bone position helpers
 src/composer/snap.js        AABB and grid snap math (pure)
 src/composer/input.js       select, drag, pan, zoom, slot pick, guides
-src/features/highlight.js   slot color + pulse
+src/features/highlight.js   slot color + pulse, selected bone mark
+src/features/outlinerTree.js  outliner tree model: bones, slots, attachments, groups, filters (pure)
 src/features/skins.js       skin selection (several skins combined)
 src/features/slotPick.js    mesh/region hull hit-test
 src/features/debugOverlay.js  debug toggles, IK / physics gizmos, event labels
 src/features/perf.js        draw-order stats
 src/features/bounds.js      pose bounds helper
-src/ui/bindUi.js            panels, scene list, toolbar, seek, keyboard
+src/ui/bindUi.js            panels, outliner, toolbar, seek, keyboard
+src/ui/icons.js             Lucide icons for the outliner
 src/persistence/sceneFile.js  schema, save, restore
 src/persistence/uiState.js  localStorage UI prefs
 ```

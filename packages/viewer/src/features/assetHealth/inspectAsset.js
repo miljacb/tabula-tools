@@ -37,7 +37,7 @@ export function inspectAsset(inst, asset, sceneInstances) {
       level: 'info',
       category: 'export.meta',
       title: 'Compiled export',
-      detail: 'Export data checks read the Spine JSON, so they are skipped for compiled skeletons. Runtime numbers come from the compiled data.',
+      detail: 'Export data checks read the skeleton JSON, so they are skipped for compiled skeletons. Runtime numbers come from the compiled data.',
     });
   }
   const atlasLint = lintAtlasExport(inst, onStage);
@@ -54,6 +54,8 @@ export function inspectAsset(inst, asset, sceneInstances) {
     if (!animationsJson) continue;
     const lint = lintAnimationExport(animationsJson, row.name, row.duration);
     findings.push(...lint.findings);
+    row.exportFindings = lint.findings;
+    row.stats = lint.stats ?? null;
     row.exportWarns = lint.warn;
     row.exportFails = lint.fail;
     row.exportFindingTips = lint.findings
@@ -70,6 +72,7 @@ export function inspectAsset(inst, asset, sceneInstances) {
   const { bestAnimation, worstAnimation } = pickBestWorstSampledAnimations(animRows);
 
   const breakdownRuntime = scoreFromFindings(runtimeFindings).breakdown;
+  const data = inst.spine.skeleton?.data || {};
   const overallScore = combineOverall(runtimeScore, exportScore);
   const scoreTips = {
     overall: buildOverallScoreTip(runtimeScore, exportScore),
@@ -95,6 +98,19 @@ export function inspectAsset(inst, asset, sceneInstances) {
     state: 'done',
     atlas: atlasLint.atlas,
     scoreTips,
+    setupRuntimeScore,
+    setup: {
+      bones: setupPerf.bones,
+      slots: (data.slots || inst.spine.skeleton?.slots || []).length,
+      vertexCount: setupPerf.vertexCount,
+      drawCalls: setupPerf.drawCalls,
+      clippingCount: setupPerf.clippingCount,
+      constraints: setupPerf.constraints,
+      constraintDetail: setupPerf.constraintDetail || '',
+      blends: setupPerf.blends || 'None',
+      animationCount: animRows.length,
+      skinCount: (data.skins || []).length,
+    },
   };
 }
 

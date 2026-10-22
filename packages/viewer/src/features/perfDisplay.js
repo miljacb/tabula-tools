@@ -1,6 +1,6 @@
 import {
   marginalAtlasBytesForInstance,
-  measureInstance,
+  measureAtlasPages,
   sceneAtlasMemorySummary,
 } from './perf.js';
 
@@ -9,7 +9,14 @@ export function formatMb(bytes) {
   return (bytes / (1024 * 1024)).toFixed(2);
 }
 
+/** @param {number} n @param {string} word */
+function plural(n, word) {
+  return `${n} ${word}${n === 1 ? '' : 's'}`;
+}
+
 /**
+ * Atlas VRAM lines for the Performance panel. Sizes are decoded pixels (format bytes per pixel,
+ * plus the exact mip chain when mipmaps are on), in MB of 1024 × 1024 bytes.
  * @param {'selected' | 'all'} scope
  * @param {import('../app/sceneStore.js').SpineInstance[]} instances
  * @param {import('../app/sceneStore.js').SpineInstance | null | undefined} selected
@@ -22,14 +29,14 @@ export function formatPerfAtlasMemory(scope, instances, selected) {
 
   if (scope === 'all') {
     const sum = sceneAtlasMemorySummary(onStage);
-    const primary = `~${formatMb(sum.gpuUniqueBytes)} MB GPU (${sum.gpuUniquePageCount} texture${sum.gpuUniquePageCount === 1 ? '' : 's'})`;
+    const primary = `${formatMb(sum.gpuUniqueBytes)} MB · ${plural(sum.gpuUniquePageCount, 'texture')}`;
     const parts = [];
-    if (onStage.length > 1) {
-      parts.push(`~${formatMb(sum.contentUniqueBytes)} MB unique atlas file(s) (${sum.contentUniquePageCount})`);
-      if (sum.stackedBytes > sum.contentUniqueBytes + 512 * 1024) {
-        parts.push(`~${formatMb(sum.stackedBytes)} MB stacked`);
-      }
+    const wasted = sum.gpuUniqueBytes - sum.contentUniqueBytes;
+    if (wasted > 0) {
+      const extra = sum.gpuUniquePageCount - sum.contentUniquePageCount;
+      parts.push(`${formatMb(wasted)} MB is ${plural(extra, 'duplicate upload')} of the same image file`);
     }
+    if (sum.notUploadedPageCount) parts.push(`${plural(sum.notUploadedPageCount, 'texture')} not drawn yet`);
     return { primary, secondary: parts.join(' · ') };
   }
 
@@ -38,14 +45,13 @@ export function formatPerfAtlasMemory(scope, instances, selected) {
     return { primary: '—', secondary: 'Select a skeleton' };
   }
 
-  const marginal = marginalAtlasBytesForInstance(inst, onStage);
-  const primary = `~${formatMb(marginal.localBytes)} MB local (${marginal.pageCount} page${marginal.pageCount === 1 ? '' : 's'})`;
+  const m = marginalAtlasBytesForInstance(inst, onStage);
+  const primary = `${formatMb(m.localBytes)} MB · ${plural(m.pageCount, 'page')}`;
   const parts = [];
   if (onStage.length > 1) {
-    parts.push(`~${formatMb(marginal.marginalBytes)} MB unique on stage`);
-    if (marginal.sharedPageCount > 0) {
-      parts.push(`${marginal.sharedPageCount} page(s) shared`);
-    }
+    parts.push(`adds ${formatMb(m.marginalBytes)} MB to the stage`);
+    if (m.sharedPageCount) parts.push(`${m.sharedPageCount} shared with a lower skeleton`);
+    if (m.duplicatePageCount) parts.push(`${m.duplicatePageCount} duplicate upload (${formatMb(m.duplicateBytes)} MB)`);
   }
   return { primary, secondary: parts.join(' · ') };
 }
@@ -62,7 +68,7 @@ export function formatAtlasPageLines(instances) {
   const byGpu = new Map();
 
   for (const inst of instances) {
-    const perf = measureInstance(inst);
+    const perf = measureAtlasPages(inst);
     for (const page of perf.pages) {
       const ck = page.contentKey || page.key;
       let content = byContent.get(ck);
@@ -93,8 +99,8 @@ export function formatAtlasPageLines(instances) {
     if (multi && content) {
       const skel = content.instIds.size;
       const gpus = content.gpuKeys.size;
-      if (gpus > 1) note = ` · ${skel} skeleton(s), ${gpus} GPU uploads`;
-      else if (skel > 1) note = ` · shared by ${skel} skeleton(s)`;
+      if (gpus > 1) note = ` · ${gpus} uploads of the same file (${skel} skeletons)`;
+      else if (skel > 1) note = ` · shared by ${skel} skeletons`;
     }
     lines.push(`${index}: ${info.label}${note}`);
   }
@@ -107,20 +113,20 @@ export function formatAtlasPageLines(instances) {
  * @param {import('../app/sceneStore.js').SpineInstance[]} [allInstances]
  */
 export function sceneVramDescription(summary, inst, allInstances = []) {
-  const contentMb = formatMb(summary.contentUniqueBytes);
-  const gpuMb = formatMb(summary.gpuUniqueBytes);
   const parts = [
-    `~${contentMb} MB unique by file (${summary.contentUniquePageCount} page(s)), ~${gpuMb} MB unique GPU (${summary.gpuUniquePageCount} texture(s)).`,
+    `${formatMb(summary.gpuUniqueBytes)} MB on the GPU in ${plural(summary.gpuUniquePageCount, 'texture')}.`,
   ];
-  if (summary.stackedBytes > summary.contentUniqueBytes + 512 * 1024) {
-    parts.push(`Stacked per-skeleton total ~${formatMb(summary.stackedBytes)} MB when imports re-upload textures.`);
+  const wasted = summary.gpuUniqueBytes - summary.contentUniqueBytes;
+  if (wasted > 0) {
+    parts.push(`${formatMb(wasted)} MB of that is the same image file uploaded more than once (separate imports); duplicating a skeleton instead of re-importing shares the texture.`);
+  }
+  if (summary.notUploadedPageCount) {
+    parts.push(`${plural(summary.notUploadedPageCount, 'texture')} not drawn yet, so not on the GPU until first shown.`);
   }
   if (inst && allInstances.length) {
     const m = marginalAtlasBytesForInstance(inst, allInstances);
-    parts.push(`This asset: ~${formatMb(m.localBytes)} MB local, ~${formatMb(m.marginalBytes)} MB unique on stage (live).`);
-    if (m.sharedPageCount > 0) {
-      parts.push(`${m.sharedPageCount} atlas page(s) shared with an earlier skeleton (z-order).`);
-    }
+    parts.push(`This skeleton: ${formatMb(m.localBytes)} MB, adds ${formatMb(m.marginalBytes)} MB to the stage.`);
   }
+  parts.push('Sizes are decoded pixels (not file size), MB = 1024 × 1024 bytes.');
   return parts.join(' ');
 }

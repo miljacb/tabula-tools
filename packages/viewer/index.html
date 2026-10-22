@@ -4,58 +4,66 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tabula Viewer</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#1b1f27" />
   <link rel="stylesheet" href="/src/styles/viewer.css" />
   <link rel="stylesheet" href="/src/styles/composer.css" />
   <link rel="stylesheet" href="/src/styles/studio.css" />
+  <script>
+    // Before first paint: the saved drawer layout, so nothing jumps when the app script takes over (drawers.js).
+    try {
+      var saved = JSON.parse(localStorage.getItem('spine-viewer-web.drawers') || '{}');
+      var root = document.documentElement;
+      root.dataset.right = saved.right === null ? 'none' : typeof saved.right === 'string' ? saved.right : 'outliner';
+      if (typeof saved.rightWidth === 'number') root.style.setProperty('--drawer-width', Math.max(240, Math.min(saved.rightWidth, innerWidth * 0.5)) + 'px');
+      if (typeof saved.bottomHeight === 'number') root.style.setProperty('--drawer-height', saved.bottomHeight + 'px');
+    } catch (error) {
+      document.documentElement.dataset.right = 'outliner';
+    }
+    try {
+      if (localStorage.getItem('spine-viewer-web.simple') === '1') document.documentElement.dataset.simple = '';
+    } catch (error) {}
+  </script>
 </head>
 <body>
   <header class="app-header">
     <div class="app-brand">Tabula <span>Viewer</span></div>
     <div class="app-header-actions">
+      <button id="btn-simple" class="header-btn" type="button" aria-pressed="false" data-tip="Simple mode: a reduced preview like Studio's .tbla viewer. Remembered in this browser.">Simple</button>
+      <span class="header-sep" aria-hidden="true"></span>
+      <button id="btn-undo" class="header-icon" type="button" data-tip="Undo" aria-label="Undo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+      <button id="btn-redo" class="header-icon" type="button" data-tip="Redo" aria-label="Redo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+      <span class="header-sep" aria-hidden="true"></span>
+      <button id="btn-new-scene" class="header-btn" type="button" data-tip="Clear the stage and start a new scene."><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New</button>
+      <button id="btn-import" class="header-btn" type="button" data-tip="Add a skeleton (json, atlas, pages) or a Tabula export (.tbla, assets.manifest.json) to the stage. You can also drop files on the stage."><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>Open</button>
       <div class="action-menu" id="action-menu">
-            <button id="action-menu-trigger" type="button" aria-haspopup="menu" aria-expanded="false">Menu</button>
-            <div id="action-menu-panel" class="action-menu-panel" hidden>
-              <button id="btn-new-scene" type="button">New scene</button>
-              <button id="btn-import" type="button">Open files</button>
-              <button id="btn-samples" type="button">Load samples</button>
-              <button id="btn-snap" type="button" class="is-active" data-tip="Shift flips snap while dragging">Snap on</button>
-              <button id="btn-grid" type="button" data-tip="Snap instance origin to a world grid. Shift also flips grid while dragging.">Grid off</button>
-              <label class="menu-grid-size" data-tip="Grid size in world units.">
-                <span>Grid size</span>
-                <select id="grid-size" aria-label="Grid size">
-                  <option value="8">8</option>
-                  <option value="16" selected>16</option>
-                  <option value="32">32</option>
-                  <option value="64">64</option>
-                </select>
-              </label>
-              <button id="btn-open" type="button">Open scene</button>
-              <button id="btn-save" type="button">Save scene</button>
-              <button id="btn-clear-all" type="button" data-tip="Remove the saved stage, files, and UI prefs from this browser. Reload starts as a first visit.">Clear all assets</button>
-              <button id="btn-manual" type="button">Manual &amp; shortcuts</button>
-            </div>
+        <button id="action-menu-trigger" class="header-icon" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="More" data-tip="More"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg></button>
+        <div id="action-menu-panel" class="action-menu-panel" role="menu" hidden>
+          <button id="btn-samples" type="button" role="menuitem">Load samples</button>
+          <hr />
+          <button id="btn-open" type="button" role="menuitem" data-tip="Open a scene layout (.json), then choose its skeleton files. They are placed as saved.">Open scene…</button>
+          <button id="btn-save" type="button" role="menuitem" data-tip="Download the scene layout (.json): positions, skins, tracks, speed and camera. Skeleton files are not included; Open scene asks for them.">Save scene</button>
+          <button id="btn-manual" type="button" role="menuitem">Manual &amp; shortcuts<kbd class="menu-kbd">?</kbd></button>
+          <hr />
+          <button id="btn-clear-all" type="button" role="menuitem" class="menu-danger" data-tip="Remove the saved stage, files, and UI prefs from this browser. Reload starts as a first visit.">Clear browser data…</button>
+        </div>
       </div>
     </div>
   </header>
   <section class="shell">
     <nav class="tool-rail" aria-label="Tools">
       <button class="rail-tool" type="button" data-tool="outliner" data-drawer="right" data-tip="Outliner" aria-label="Outliner" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m3 13 9 5 9-5"/></svg></button>
-      <button class="rail-tool" type="button" data-tool="slots" data-drawer="right" data-tip="Slots" aria-label="Slots" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg></button>
-      <button class="rail-tool" type="button" data-tool="bones" data-drawer="right" data-tip="Bones" aria-label="Bones" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="5.5" r="2.5"/></svg></button>
-      <button class="rail-tool" type="button" data-tool="skins" data-drawer="right" data-tip="Skins" aria-label="Skins" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.4 6.6 16 4a4 4 0 0 1-8 0L3.6 6.6 5 11l2-1v10h10V10l2 1z"/></svg></button>
       <button class="rail-tool" type="button" data-tool="performance" data-drawer="right" data-tip="Performance" aria-label="Performance" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14 16 10"/><path d="M3.5 18a9 9 0 1 1 17 0"/></svg></button>
       <hr />
-      <button class="rail-tool" type="button" data-tool="animations" data-drawer="bottom" data-tip="Animations" aria-label="Animations" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/></svg></button>
+      <button class="rail-tool" type="button" data-tool="animations" aria-disabled="true" data-drawer="bottom" data-tip="Animations · select a skeleton first" aria-label="Animations" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/></svg></button>
     </nav>
 
     <section class="stage-card">
       <div class="stage-toolbar">
-        <div class="stage-heading">
+        <div class="stage-group" role="group" aria-label="View">
           <h2>Stage</h2>
-          <div id="dimensions-display" title="Live bounds of the selected skeleton">
-            <span class="bounds-label">Bounds</span>
-            <span id="dimensions-value">—</span>
-          </div>
           <label class="stage-bg" data-tip="Stage background">
             <select id="stage-bg" aria-label="Stage background">
               <option value="dark">Dark</option>
@@ -65,44 +73,56 @@
             </select>
             <input id="stage-bg-color" type="color" value="#111111" aria-label="Custom background colour" hidden />
           </label>
-          <div class="stage-transport" role="group" aria-label="Playback">
-            <button id="btn-setup" type="button" data-tip="Reset the selected skeletons (or all) to the setup pose.">Setup pose</button>
-            <button id="btn-play" type="button" data-tip="Play the selected skeletons, or every skeleton when nothing is selected.">Play</button>
-            <button id="btn-pause" type="button" hidden>Pause</button>
+          <div class="screen-size" id="screen-size" data-tip="Screen frame drawn on the stage. Center places skeletons in it.">
+            <button type="button" id="screen-size-trigger" class="screen-size-trigger" aria-haspopup="listbox" aria-expanded="false">1080 × 1920</button>
+            <div class="screen-size-menu" id="screen-size-menu" hidden>
+              <div id="screen-size-list"></div>
+              <form id="screen-size-form">
+                <input id="screen-width" type="number" min="1" step="1" placeholder="W" aria-label="Width" required />
+                <span aria-hidden="true">×</span>
+                <input id="screen-height" type="number" min="1" step="1" placeholder="H" aria-label="Height" required />
+                <button type="submit">Add</button>
+              </form>
+            </div>
+          </div>
+          <div id="zoom-toolbar" class="stage-seg" role="group" aria-label="Zoom">
+            <button id="btn-zoom-out" type="button" data-tip="Zoom out" aria-label="Zoom out">&#x2212;</button>
+            <button id="zoom-label" type="button" data-tip="Zoom. Click to reset the view to 100%." aria-label="Reset view">100%</button>
+            <button id="btn-zoom-in" type="button" data-tip="Zoom in" aria-label="Zoom in">&#x2b;</button>
+            <button id="btn-center-all" type="button" data-tip="Center every visible instance in the screen frame and show the whole frame." aria-label="Center all">&#x2316;</button>
           </div>
         </div>
-        <div class="stage-tools">
-          <div class="stage-tools-cluster">
-            <div class="screen-size" id="screen-size">
-              <button type="button" id="screen-size-trigger" class="screen-size-trigger" aria-haspopup="listbox" aria-expanded="false">1080 × 1920</button>
-              <div class="screen-size-menu" id="screen-size-menu" hidden>
-                <div id="screen-size-list"></div>
-                <form id="screen-size-form">
-                  <input id="screen-width" type="number" min="1" step="1" placeholder="W" aria-label="Width" required />
-                  <span aria-hidden="true">×</span>
-                  <input id="screen-height" type="number" min="1" step="1" placeholder="H" aria-label="Height" required />
-                  <button type="submit">Add</button>
-                </form>
-              </div>
-            </div>
-            <button type="button" id="btn-inspect-asset" disabled data-tip="Inspect export and runtime health for the selected skeleton">Inspect</button>
-            <div id="zoom-toolbar">
-              <button id="btn-zoom-out" type="button" title="Zoom out">&#x2212;</button>
-              <span id="zoom-label">100%</span>
-              <button id="btn-zoom-in" type="button" title="Zoom in">&#x2b;</button>
-              <div class="zoom-divider"></div>
-              <button id="btn-zoom-reset" type="button">Reset</button>
-            </div>
+        <span class="stage-divider" aria-hidden="true"></span>
+        <div class="stage-group" role="group" aria-label="Snapping">
+          <div class="stage-seg">
+            <button id="btn-snap" type="button" class="stage-toggle is-active" aria-pressed="true" data-tip="Snap instances to each other while dragging. Shift flips it while dragging.">Snap</button>
+            <button id="btn-grid" type="button" class="stage-toggle" aria-pressed="false" data-tip="Snap instance origins to a world grid. Shift flips it while dragging.">Grid</button>
           </div>
-          <span class="stage-toolbar-vdivider" aria-hidden="true">|</span>
-          <button type="button" id="btn-asset-health" class="stage-health-btn" disabled data-tip="Health scores for every skeleton on the stage. Click a scene score chip for one asset."><span class="stage-health-icon" aria-hidden="true">♥</span><span id="btn-asset-health-label">Asset health</span></button>
+          <label class="menu-grid-size" data-tip="Grid size in world units.">
+            <select id="grid-size" aria-label="Grid size">
+              <option value="8">8</option>
+              <option value="16" selected>16</option>
+              <option value="32">32</option>
+              <option value="64">64</option>
+            </select>
+          </label>
+        </div>
+        <div class="stage-group stage-group-end" role="group" aria-label="Inspect">
+          <button id="btn-marks" type="button" class="stage-toggle is-active" aria-pressed="true" data-tip="Outline the selected slot or bone on the stage. Turn off for a clean view (O)."><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4"/></svg>Outline</button>
+          <button id="btn-debug" type="button" class="stage-toggle" data-tip="Overlays: bones, meshes, clipping, IK, physics, events."><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><path d="m7.5 7.5 9 9"/></svg>Debug</button>
+          <button type="button" id="btn-asset-health" class="stage-health-btn" disabled><span class="stage-health-icon" aria-hidden="true">♥</span><span id="btn-asset-health-label">Health</span></button>
         </div>
       </div>
       <div class="stage-body">
         <div id="stage"></div>
-        <div id="drop-hint">Drop a Spine skeleton with its atlas and images, or a .tbla export</div>
+        <div class="simple-zoom">
+          <button id="simple-zoom-in" type="button" aria-label="Zoom in" data-tip="Zoom in (or scroll)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M8 11h6M11 8v6"/></svg></button>
+          <button id="simple-zoom-out" type="button" aria-label="Zoom out" data-tip="Zoom out (or scroll)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M8 11h6"/></svg></button>
+          <button id="simple-fit" type="button" aria-label="Fit" data-tip="Fit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
+        </div>
+        <div id="drop-hint">Drop a skeleton with its atlas and images, or a .tbla export</div>
       </div>
-      <section id="bottom-drawer" class="dock bottom-drawer">
+      <section id="bottom-drawer" class="dock bottom-drawer is-unavailable">
         <div class="drawer-resize" role="separator" aria-orientation="horizontal" aria-label="Resize animations drawer" title="Drag to resize · double-click to reset" tabindex="0"></div>
         <div class="bottom-drawer-body">
         <section class="drawer-page" data-tool="animations" data-title="Animations" hidden>
@@ -111,19 +131,15 @@
             <span class="header-title" id="animations-title-text">Animations</span>
             <input id="animations-filter" class="panel-filter" type="search" placeholder="Filter" aria-label="Filter animations" autocomplete="off" />
             <div id="anim-controls" class="anim-controls">
-              <label class="anim-speed" data-tip="Playback speed of the selected skeletons (or all, with Apply globally).">
+              <label class="anim-speed" data-tip="Playback speed. Selected / All beside it decides which skeletons it changes.">
                 <span class="anim-controls-label">Speed</span>
                 <input id="anim-speed" type="range" min="10" max="200" step="5" value="100" disabled />
                 <span id="anim-speed-value" class="anim-controls-value">1.0×</span>
               </label>
-              <label class="anim-option skin-item" data-tip="Speed and mode changes apply to every skeleton on the stage.">
-                <input id="anim-apply-global" type="checkbox" />
-                <span>Apply globally</span>
-              </label>
-              <button id="stage-animations" class="anim-item stage-anim" type="button" data-tip="Global stage Play skips this skeleton while this is off. Choosing an animation still plays it." disabled>
-                <span class="stage-global-mark" aria-hidden="true"></span>
-                <span class="anim-item-name">Global animations on</span>
-              </button>
+              <div class="stage-seg anim-scope" role="group" aria-label="Speed and mode apply to">
+                <button type="button" class="stage-toggle" data-anim-scope="selected" aria-pressed="true" data-tip="Speed and Mode change only the selected skeleton.">Selected</button>
+                <button type="button" class="stage-toggle" data-anim-scope="all" aria-pressed="false" data-tip="Speed and Mode change every skeleton on the stage. Switching to All copies the selected skeleton's speed and mode to the others.">All</button>
+              </div>
             </div>
             <button class="btn-collapse" type="button" aria-label="Collapse"><span class="chevron"></span></button>
           </div>
@@ -175,6 +191,7 @@
     </section>
 
     <aside class="dock right-drawer" id="right-stack">
+      <div class="drawer-resize drawer-resize-x" role="separator" aria-orientation="vertical" aria-label="Resize side drawer" title="Drag to resize · double-click to reset" tabindex="0"></div>
       <div class="dock-heading" id="right-drawer-title">Outliner</div>
       <div class="dock-scroll">
         <section class="drawer-page" data-tool="outliner" data-title="Outliner" hidden>
@@ -183,65 +200,39 @@
             <span class="header-title" id="scene-title">Scene (0)</span>
             <div class="header-actions">
               <button id="btn-scene-visibility" type="button" data-tip="Hide or show every skeleton on the stage." disabled>Hide all</button>
-              <button id="btn-debug" type="button" data-tip="Toggle bones, meshes, clipping, IK, and physics overlays.">Debug</button>
             </div>
             <button class="btn-collapse" type="button" aria-label="Collapse"><span class="chevron"></span></button>
+          </div>
+          <div id="outliner-types" class="outliner-types" aria-label="Outliner type filters"></div>
+          <div class="outliner-tools">
+            <input id="outliner-filter" class="panel-filter" type="search" placeholder="Filter bones, slots, attachments…" aria-label="Filter the outliner" autocomplete="off" />
           </div>
           <div class="panel-content">
-            <ol id="scene-list"></ol>
+            <ol id="scene-list" class="outliner-list" role="tree" aria-label="Scene outliner"></ol>
           </div>
-        </div>
-
-        <div id="transform-all-panel" class="dock-panel dock-panel-fixed">
-          <div class="panel-header panel-header-static">
-            <span class="header-title">Transform</span>
-            <span id="transform-scope" class="header-meta">all</span>
-          </div>
-          <div class="panel-content">
-            <div class="transform-all-actions">
-              <button id="btn-transform-fit-all" type="button">Fit</button>
-              <button id="btn-transform-center-all" type="button">Center</button>
-              <button id="btn-transform-stop-all" type="button">Stop</button>
-              <button id="btn-transform-reset-all" type="button">Reset</button>
-            </div>
-            <div class="transform-fields">
-              <label class="tf-field"><span>X</span><input id="tf-x" type="number" step="1" /></label>
-              <label class="tf-field"><span>Y</span><input id="tf-y" type="number" step="1" /></label>
-              <label class="tf-field"><span>Rot</span><input id="tf-rot" type="number" step="0.1" /></label>
-              <label class="tf-field"><span>SX</span><input id="tf-sx" type="number" step="0.01" /></label>
-              <label class="tf-field"><span>SY</span><input id="tf-sy" type="number" step="0.01" /></label>
+          <div id="slot-inspector" class="bone-inspector slot-inspector is-hidden">
+            <div class="bi-head">
+              <span class="bi-caption">Slot</span><span id="si-name" class="bi-name"></span>
+              <span class="bi-actions">
+                <button id="btn-pulse-toggle" type="button" disabled data-tip="Pulse the outline of the selected slot on the stage.">Pulse</button>
+                <button id="btn-mask-color" type="button" disabled data-mask="green" aria-label="Slot outline color" data-tip="Outline color of the selected slot. Click to cycle."></button>
+              </span>
             </div>
           </div>
-        </div>
-        </section>
-        <section class="drawer-page" data-tool="slots" data-title="Slots" hidden>
-        <div id="slots-panel" class="collapsible-panel">
-          <div id="slots-header" class="panel-header">
-            <span class="header-title" id="slots-title">Slots (0)</span>
-            <input id="slots-filter" class="panel-filter" type="search" placeholder="Filter" aria-label="Filter slots" autocomplete="off" />
-            <div class="header-actions" id="slots-header-actions">
-              <button id="btn-pulse-toggle" type="button" title="Cycle outline color on selected slot">Pulse</button>
-              <button id="btn-mask-color" type="button" data-mask="green" aria-label="Slot outline color">&#x25B6;</button>
+          <div id="attachment-inspector" class="bone-inspector attachment-inspector is-hidden">
+            <div class="bi-head"><span class="bi-caption">Attachment</span><span id="ai-name" class="bi-name"></span><span class="bi-tag">read-only</span></div>
+            <div class="ai-body">
+              <canvas id="ai-thumb" class="ai-thumb" width="64" height="64" aria-label="Attachment preview"></canvas>
+              <dl id="ai-grid" class="ai-grid"></dl>
             </div>
-            <button class="btn-collapse" type="button" aria-label="Collapse"><span class="chevron"></span></button>
           </div>
-          <ol id="slots-list" class="panel-content"></ol>
-        </div>
-        </section>
-        <section class="drawer-page" data-tool="bones" data-title="Bones" hidden>
-        <div id="bones-panel" class="collapsible-panel">
-          <div id="bones-header" class="panel-header">
-            <span class="header-title" id="bones-title-text">Bones</span>
-            <input id="bones-filter" class="panel-filter" type="search" placeholder="Filter" aria-label="Filter bones" autocomplete="off" />
-            <button class="btn-collapse" type="button" aria-label="Collapse"><span class="chevron"></span></button>
-          </div>
-          <ol id="bones-list" class="panel-content"></ol>
           <div id="bone-inspector" class="bone-inspector is-hidden">
+            <div class="bi-head"><span class="bi-caption">Bone</span><span id="bi-name" class="bi-name"></span><span class="bi-tag" data-tip="Live values from the playing pose. Move whole skeletons with Transform below.">read-only</span></div>
             <div class="bi-grid">
               <div class="bi-pair" data-tip="World X. Horizontal position after parent bones.">
                 <span class="bi-label">X</span><span id="bi-x" class="bi-value">-</span>
               </div>
-              <div class="bi-pair" data-tip="World Y. Vertical position after parent bones. Spine Y grows upward.">
+              <div class="bi-pair" data-tip="World Y. Vertical position after parent bones. Y grows upward.">
                 <span class="bi-label">Y</span><span id="bi-y" class="bi-value">-</span>
               </div>
               <div class="bi-pair" data-tip="World rotation in degrees, after parent bones.">
@@ -263,15 +254,32 @@
             </div>
           </div>
         </div>
-        </section>
-        <section class="drawer-page" data-tool="skins" data-title="Skins" hidden>
-        <div id="skins-panel" class="collapsible-panel">
-          <div id="skins-header" class="panel-header">
-            <span class="header-title" id="skins-title">Skins</span>
-            <input id="skins-filter" class="panel-filter" type="search" placeholder="Filter" aria-label="Filter skins" autocomplete="off" />
-            <button class="btn-collapse" type="button" aria-label="Collapse"><span class="chevron"></span></button>
+
+        <div id="transform-all-panel" class="dock-panel dock-panel-fixed">
+          <div class="panel-header panel-header-static">
+            <span class="header-title">Transform</span>
+            <span id="transform-scope" class="header-meta">all</span>
           </div>
-          <div id="skins-list" class="panel-content"></div>
+          <div class="panel-content">
+            <p id="transform-empty" class="panel-empty">Open a skeleton to place it on the stage.</p>
+            <div class="transform-all-actions">
+              <button id="btn-transform-fit-all" type="button">Fit view</button>
+              <button id="btn-transform-center-all" type="button">Center</button>
+              <button id="btn-setup" type="button" disabled>Setup pose</button>
+              <button id="btn-transform-reset-all" type="button">Revert</button>
+            </div>
+            <div class="transform-fields">
+              <label class="tf-field"><span>X</span><input id="tf-x" type="number" step="1" /></label>
+              <label class="tf-field"><span>Y</span><input id="tf-y" type="number" step="1" /></label>
+              <label class="tf-field"><span>Rot</span><input id="tf-rot" type="number" step="0.1" /></label>
+              <label class="tf-field"><span>SX</span><input id="tf-sx" type="number" step="0.01" /></label>
+              <label class="tf-field"><span>SY</span><input id="tf-sy" type="number" step="0.01" /></label>
+            </div>
+            <div id="dimensions-display" data-tip="Live bounds of the selected skeleton (all skeletons when nothing is selected).">
+              <span class="bounds-label">Bounds</span>
+              <span id="dimensions-value">—</span>
+            </div>
+          </div>
         </div>
         </section>
         <section class="drawer-page" data-tool="performance" data-title="Performance" hidden>
@@ -279,42 +287,131 @@
           <div id="performance-header" class="panel-header">
             <span class="header-title">Performance</span>
             <div class="header-actions">
-              <button id="btn-perf-scope" type="button">Selected</button>
+              <div class="stage-seg perf-scope" role="group" aria-label="Measure">
+                <button type="button" class="stage-toggle" data-perf-scope="selected" aria-pressed="true" data-tip="Measure the selected skeletons.">Selected</button>
+                <button type="button" class="stage-toggle" data-perf-scope="all" aria-pressed="false" data-tip="Measure every skeleton on the stage.">All</button>
+              </div>
             </div>
             <button class="btn-collapse" type="button" aria-label="Collapse"><span class="chevron"></span></button>
           </div>
           <div class="panel-content">
-            <div class="perf-fps-block">
-              <div><span class="perf-label">FPS:</span><span id="perf-fps" class="perf-value">-</span></div>
-              <canvas id="perf-fps-graph" aria-label="Frames per second over the last 10 seconds"></canvas>
+            <div id="perf-budget-group" class="perf-group">
+              <h4 class="perf-group-title">Budget</h4>
+              <label class="perf-units" data-tip="Limits for the whole stage. Presets are starting points for a typical game screen, not platform rules. Values turn amber above 80% of a limit and red above it."><span class="perf-label">Target:</span><select id="perf-budget" aria-label="Budget target"></select></label>
+              <div id="perf-budget-custom" class="perf-budget-custom" hidden>
+                <label><span>Frame ms</span><input type="number" min="1" step="0.1" data-budget="frameMs" /></label>
+                <label><span>Draw calls</span><input type="number" min="1" step="1" data-budget="drawCalls" /></label>
+                <label><span>Vertices</span><input type="number" min="1" step="100" data-budget="vertices" /></label>
+                <label><span>VRAM MB</span><input type="number" min="1" step="1" data-budget="vramMb" /></label>
+              </div>
+              <div id="perf-budget-rows" class="perf-budget-rows"></div>
             </div>
-            <div data-tip="Estimated decoded atlas size on the GPU (not compressed WebP size). Counted once per Pixi texture upload; Duplicate shares uploads, separate imports do not. Unique by file counts each atlas image once by name and size. This is not Chrome's tab GPU meter.">
-              <span class="perf-label">Atlas VRAM (est.):</span><span id="perf-memory" class="perf-value">-</span>
+            <div id="perf-frame" class="perf-group">
+              <h4 class="perf-group-title">Frame</h4>
+              <div class="perf-fps-block">
+                <div><span class="perf-label">FPS:</span><span id="perf-fps" class="perf-value">-</span><span id="perf-fps-target" class="perf-sub"></span></div>
+                <canvas id="perf-fps-graph" aria-label="Frames per second over the last 10 seconds"></canvas>
+              </div>
+              <div data-tip="Time between frames over the last 10 seconds: average and the slowest single frame."><span class="perf-label">Frame time:</span><span id="perf-frame-time" class="perf-value">-</span></div>
+              <div data-tip="Average FPS of the slowest 1% of frames in the last 10 seconds. Shows stutter that average FPS hides."><span class="perf-label">1% low:</span><span id="perf-fps-low" class="perf-value">-</span></div>
+              <div data-tip="Frames that took more than twice the display's frame time in the last 10 seconds, with the likely cause: a texture uploading to the GPU, a long browser task, or slow update / render work."><span class="perf-label">Stutters (10 s):</span><span id="perf-stutters" class="perf-value">-</span></div>
+              <div id="perf-stutter-list" class="perf-memory-sub"></div>
+              <div data-tip="CPU time of the last frame. Update: advancing animations and posing skeletons, plus the viewer's own UI work. Render: Pixi building and submitting draw calls. GPU time is not measurable here."><span class="perf-label">CPU:</span><span id="perf-cpu" class="perf-value">-</span></div>
             </div>
-            <div id="perf-memory-sub" class="perf-memory-sub"></div>
-            <div id="perf-atlas-pages"></div>
-            <p id="perf-pose-note" class="perf-hint"></p>
-            <div><span class="perf-label">Vertices:</span><span id="perf-vertices" class="perf-value">-</span></div>
-            <div><span class="perf-label">Draw calls:</span><span id="perf-draw-calls" class="perf-value">-</span></div>
-            <p id="perf-health-peak" class="perf-hint"></p>
-            <div class="perf-section">
-              <div><span class="perf-label">Bones:</span><span id="perf-bones" class="perf-value">-</span></div>
-              <div><span class="perf-label">Constraints:</span><span id="perf-constraints" class="perf-value">-</span></div>
-              <div id="perf-constraints-detailed"></div>
+            <div id="perf-live" class="perf-group">
+              <h4 class="perf-group-title">Stage · last frame</h4>
+              <div data-tip="Draw calls the Tabula renderer issued for every skeleton on screen, as measured. Guides and selection outlines are not included."><span class="perf-label">Draw calls:</span><span id="perf-live-dc" class="perf-value">-</span></div>
+              <div><span class="perf-label">Triangles:</span><span id="perf-live-tris" class="perf-value">-</span></div>
+              <div><span class="perf-label">Vertices:</span><span id="perf-live-verts" class="perf-value">-</span></div>
+              <div data-tip="Highest values in any single frame over the last 10 seconds."><span class="perf-label">Peak (10 s):</span><span id="perf-live-peak" class="perf-value">-</span></div>
+              <p id="perf-live-breaks" class="perf-hint"></p>
             </div>
-            <div class="perf-section">
-              <div><span class="perf-label">Clippings:</span><span id="perf-clippings" class="perf-value">-</span></div>
-              <div><span class="perf-label">Mask Verts:</span><span id="perf-mask-verts" class="perf-value">-</span></div>
+            <div id="perf-memory-group" class="perf-group">
+              <h4 class="perf-group-title">Memory</h4>
+              <div id="perf-heap-row" data-tip="JavaScript objects (skeleton data, animation state, buffers) as Chrome reports them. Chrome rounds and delays this value on purpose. Does not include image pixels or GPU memory."><span class="perf-label">JS heap:</span><span id="perf-heap" class="perf-value">-</span></div>
+              <div id="perf-page-mem-row" hidden data-tip="Whole page memory measured by the browser: JavaScript, DOM and canvas. GPU memory (atlas textures) is not included; see Atlas VRAM."><span class="perf-label">Page:</span><span id="perf-page-mem" class="perf-value">-</span></div>
+              <div id="perf-page-mem-detail" class="perf-memory-sub"></div>
+              <button type="button" id="perf-measure-mem" class="perf-measure" hidden>Measure page memory</button>
+              <p id="perf-mem-note" class="perf-hint"></p>
             </div>
-            <div class="perf-section">
-              <div><span class="perf-label">Blends:</span><span id="perf-blends" class="perf-value">-</span></div>
+            <p id="perf-empty" class="panel-empty" hidden>Select a skeleton, or switch to All.</p>
+            <div id="perf-scope-group" class="perf-group">
+              <h4 id="perf-scope-title" class="perf-group-title">Selected skeleton</h4>
+              <div data-tip="Draw calls this would take, counted with the renderer's own batching rules: one call can use several atlas pages (up to the texture units), Normal and Additive share a call, Multiply and Screen need their own."><span class="perf-label">Draw calls:</span><span id="perf-draw-calls" class="perf-value">-</span></div>
+              <p id="perf-breaks" class="perf-hint"></p>
+              <div><span class="perf-label">Vertices:</span><span id="perf-vertices" class="perf-value">-</span></div>
+              <div><span class="perf-label">Triangles:</span><span id="perf-triangles" class="perf-value">-</span></div>
+              <div data-tip="Distinct atlas pages drawn from."><span class="perf-label">Textures:</span><span id="perf-textures" class="perf-value">-</span></div>
+              <label class="perf-units" data-tip="Texture units one draw call can bind. The renderer uses up to 8; pick fewer to see draw calls on a weaker device. Changes the counts here and in the health scan, not the live renderer."><span class="perf-label">Texture units:</span><select id="perf-units" aria-label="Texture units"></select></label>
+              <div id="perf-skel-cpu-row" data-tip="CPU time per frame spent updating this skeleton: animation, bones, constraints, physics (smoothed)."><span class="perf-label">CPU update:</span><span id="perf-skel-cpu" class="perf-value">-</span></div>
+              <div id="perf-load-row" data-tip="Loading cost when the skeleton was opened: parsing the data, fetching and decoding (or transcoding) atlas pages, and uploading them to the GPU (CPU side)."><span class="perf-label">Load:</span><span id="perf-load" class="perf-value">-</span></div>
+              <div id="perf-load-detail" class="perf-memory-sub"></div>
+              <p id="perf-pose-note" class="perf-hint"></p>
+              <p id="perf-health-peak" class="perf-hint"></p>
+              <div class="perf-section">
+                <div><span class="perf-label">Bones:</span><span id="perf-bones" class="perf-value">-</span></div>
+                <div><span class="perf-label">Constraints:</span><span id="perf-constraints" class="perf-value">-</span></div>
+                <div id="perf-constraints-detailed"></div>
+              </div>
+              <div class="perf-section">
+                <div><span class="perf-label">Clippings:</span><span id="perf-clippings" class="perf-value">-</span></div>
+                <div><span class="perf-label">Mask verts:</span><span id="perf-mask-verts" class="perf-value">-</span></div>
+              </div>
+              <div class="perf-section">
+                <div data-tip="Attachments drawn per blend mode. Normal and Additive batch together; Multiply and Screen each need their own draw call state."><span class="perf-label">Blends:</span><span id="perf-blends" class="perf-value">-</span></div>
+                <p id="perf-blends-note" class="perf-hint"></p>
+              </div>
+            </div>
+            <div id="perf-atlas-group" class="perf-group">
+              <h4 class="perf-group-title">Atlas VRAM</h4>
+              <div data-tip="Decoded atlas pixels on the GPU, not the WebP/PNG file size: width × height × bytes per pixel, plus the exact mipmap chain when mipmaps are on. MB = 1024 × 1024 bytes. Each GPU texture counts once: Duplicate shares textures, a separate import of the same file uploads it again. Pixi uploads a texture on first draw. Not Chrome's GPU meter.">
+                <span class="perf-label">Size:</span><span id="perf-memory" class="perf-value">-</span>
+              </div>
+              <div id="perf-memory-sub" class="perf-memory-sub"></div>
+              <div id="perf-atlas-pages"></div>
+            </div>
+            <div id="perf-record-group" class="perf-group">
+              <h4 class="perf-group-title">Recording</h4>
+              <div class="perf-record-actions">
+                <button type="button" id="perf-record" class="perf-measure">Record</button>
+                <button type="button" id="perf-export-json" class="perf-measure" disabled>Export JSON</button>
+                <button type="button" id="perf-export-csv" class="perf-measure" disabled>Export CSV</button>
+              </div>
+              <p id="perf-record-status" class="perf-hint">Records every frame for up to 60 seconds: frame time, CPU, draw calls, vertices, stutters, memory.</p>
+            </div>
+            <div id="perf-breakdown-group" class="perf-group" hidden>
+              <h4 class="perf-group-title">Per skeleton</h4>
+              <div id="perf-breakdown" class="perf-breakdown"></div>
             </div>
           </div>
         </div>
         </section>
       </div>
     </aside>
+    <aside id="simple-side" class="simple-side" aria-label="Preview">
+      <label id="simple-skeleton-field">Skeleton<select id="simple-skeleton" aria-label="Skeleton"></select></label>
+      <label id="simple-skin-field">Skin<select id="simple-skin" aria-label="Skin"></select></label>
+      <input id="simple-filter" type="search" placeholder="Find animation…" aria-label="Filter animations" autocomplete="off" />
+      <div id="simple-list" class="simple-list" aria-label="Animations"></div>
+    </aside>
   </section>
+  <footer id="simple-bar" class="simple-bar">
+    <div class="simple-transport">
+      <button id="simple-play" type="button" aria-label="Play"></button>
+      <button id="simple-restart" type="button" aria-label="Restart"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
+      <input id="simple-scrub" class="simple-scrub" type="range" min="0" max="1" step="0.001" value="0" aria-label="Playhead" />
+      <output id="simple-time" aria-label="Playhead time">0.00 / 0.00 s</output>
+    </div>
+    <div class="simple-options">
+      <label>Speed<select id="simple-speed" aria-label="Speed"><option value="0.1">0.1×</option><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label>
+      <label><input id="simple-loop" type="checkbox" checked />Loop</label>
+      <label>Background<select id="simple-bg" aria-label="Background"><option value="checker">Checker</option><option value="dark">Dark</option><option value="light">Light</option><option value="custom">Color</option></select><input id="simple-bg-color" type="color" aria-label="Background color" hidden /></label>
+      <span class="simple-actions">
+        <button id="simple-open" type="button">Open…</button>
+        <button id="simple-exit" type="button" data-tip="Back to the full viewer">Full viewer</button>
+      </span>
+    </div>
+  </footer>
 
   <div id="hover-tip" hidden></div>
 
@@ -340,7 +437,7 @@
   <div id="health-detail-modal" class="manual-modal health-modal" hidden>
     <div class="manual-dialog health-dialog-wide" role="dialog" aria-modal="true" aria-labelledby="health-detail-title">
       <header class="manual-header health-detail-header">
-        <button id="health-detail-back" type="button" class="health-back-btn" hidden aria-label="Back to list">←</button>
+        <button id="health-detail-back" type="button" class="health-back-btn" hidden>← All skeletons</button>
         <div class="manual-header-text">
           <p class="eyebrow">Asset report</p>
           <h2 id="health-detail-title" class="header-title">—</h2>
@@ -363,17 +460,31 @@
         </div>
         <button id="debug-close" type="button" class="manual-close" aria-label="Close"><span aria-hidden="true">×</span></button>
       </header>
+      <div class="debug-bar">
+        <label class="debug-scope"><input id="debug-selected-only" class="debug-switch" type="checkbox" role="switch" /> Selected assets only</label>
+        <button id="debug-all-on" type="button">All on</button>
+        <button id="debug-all-off" type="button">All off</button>
+      </div>
       <div class="manual-body debug-flags">
-        <label><input type="checkbox" data-debug="bones" /> Bones</label>
-        <label><input type="checkbox" data-debug="meshHull" /> Mesh hulls</label>
-        <label><input type="checkbox" data-debug="meshTriangles" /> Mesh triangles</label>
-        <label><input type="checkbox" data-debug="clipping" /> Clipping</label>
-        <label><input type="checkbox" data-debug="regions" /> Regions</label>
-        <label><input type="checkbox" data-debug="paths" /> Paths</label>
-        <label><input type="checkbox" data-debug="boundingBoxes" /> Bounding boxes</label>
-        <label><input type="checkbox" data-debug="events" /> Events</label>
-        <label><input type="checkbox" data-debug="ik" /> IK</label>
-        <label><input type="checkbox" data-debug="physics" /> Physics (4.2+)</label>
+        <section class="debug-group">
+          <h3>Skeleton</h3>
+          <label class="debug-row"><span class="debug-swatch" style="--swatch: #ff3b30"></span><span class="debug-text"><span class="debug-label">Bones</span><span class="debug-hint">Bone lines and joints</span></span><input class="debug-switch" type="checkbox" role="switch" data-debug="bones" /></label>
+          <label class="debug-row"><span class="debug-swatch" style="--swatch: #4fc3f7"></span><span class="debug-text"><span class="debug-label">IK</span><span class="debug-hint">Constraint chains and targets</span></span><input class="debug-switch" type="checkbox" role="switch" data-debug="ik" /></label>
+          <label class="debug-row"><span class="debug-swatch" style="--swatch: #e8a87c"></span><span class="debug-text"><span class="debug-label">Physics</span><span class="debug-hint">Spring gizmos</span></span><input class="debug-switch" type="checkbox" role="switch" data-debug="physics" /></label>
+        </section>
+        <section class="debug-group">
+          <h3>Attachments</h3>
+          <label class="debug-row"><span class="debug-swatch" style="--swatch: #00d1ff"></span><span class="debug-text"><span class="debug-label">Regions</span><span class="debug-hint">Image quads</span></span><input class="debug-switch" type="checkbox" role="switch" data-debug="regions" /></label>
+          <label class="debug-row"><span class="debug-swatch" style="--swatch: #ffd60a"></span><span class="debug-text"><span class="debug-label">Mesh hulls</span><span class="debug-hint">Outer edge of meshes</span></span><input class="debug-switch" type="checkbox" role="switch" data-debug="meshHull" /></label>
+          <label class="debug-row"><span class="debug-swatch" style="--swatch: #ffd60a"></span><span class="debug-text"><span class="debug-label">Mesh triangles</span><span class="debug-hint">Every triangle; heavy on big meshes</span></span><input class="debug-switch" type="checkbox" role="switch" data-debug="meshTriangles" /></label>
+          <label class="debug-row"><span class="debug-swatch" style="--swatch: #c77dff"></span><span class="debug-text"><span class="debug-label">Clipping</span><span class="debug-hint">Clip polygons</span></span><input class="debug-switch" type="checkbox" role="switch" data-debug="clipping" /></label>
+          <label class="debug-row"><span class="debug-swatch" style="--swatch: #ff9f0a"></span><span class="debug-text"><span class="debug-label">Paths</span><span class="debug-hint">Path curves</span></span><input class="debug-switch" type="checkbox" role="switch" data-debug="paths" /></label>
+          <label class="debug-row"><span class="debug-swatch" style="--swatch: #30d158"></span><span class="debug-text"><span class="debug-label">Bounding boxes</span><span class="debug-hint">Hit areas</span></span><input class="debug-switch" type="checkbox" role="switch" data-debug="boundingBoxes" /></label>
+        </section>
+        <section class="debug-group">
+          <h3>Timeline</h3>
+          <label class="debug-row"><span class="debug-swatch" style="--swatch: #ffe566"></span><span class="debug-text"><span class="debug-label">Events</span><span class="debug-hint">Event names as they fire</span></span><input class="debug-switch" type="checkbox" role="switch" data-debug="events" /></label>
+        </section>
       </div>
     </div>
   </div>
@@ -387,6 +498,7 @@
         </div>
         <button id="manual-close" type="button" class="manual-close" aria-label="Close"><span aria-hidden="true">×</span></button>
       </header>
+      <nav id="manual-tabs" class="manual-tabs" role="tablist" aria-label="Manual sections"></nav>
       <div id="manual-body" class="manual-body"></div>
     </div>
   </div>
@@ -432,7 +544,7 @@
       <div class="session-restore-spinner" aria-hidden="true"></div>
       <p class="session-restore-title">Restoring saved assets</p>
       <p id="session-restore-detail" class="session-restore-detail">Loading skeletons from this browser…</p>
-      <button type="button" id="session-restore-clear">Clear assets</button>
+      <button type="button" id="session-restore-clear">Stop and clear browser data</button>
     </div>
   </div>
 

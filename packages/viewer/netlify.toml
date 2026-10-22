@@ -6,3 +6,11 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# Cross-origin isolation: lets the Performance panel measure page memory
+# (performance.measureUserAgentSpecificMemory). Same headers as the Vite dev/preview servers.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Embedder-Policy = "require-corp"

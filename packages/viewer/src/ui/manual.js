@@ -1,3 +1,4 @@
+import { MANUAL_TAB_STORAGE_KEY } from '../constants.js';
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 
 /**
@@ -25,93 +26,140 @@ function row(label, detail) {
   return `<tr><th scope="row"><kbd class="manual-kbd">${label}</kbd></th><td>${detail}</td></tr>`;
 }
 
-function renderManualBody() {
+const MANUAL_TAB_KEY = MANUAL_TAB_STORAGE_KEY;
+
+/** @param {string} title @param {string} html */
+function section(title, html) {
+  return `<section class="manual-section manual-block"><h3 class="manual-section-title">${title}</h3>${html}</section>`;
+}
+
+/** @param {string[]} rows */
+function table(rows) {
+  return `<table class="manual-table">${rows.join('')}</table>`;
+}
+
+/** @param {string[]} items */
+function list(items) {
+  return `<ul class="manual-list">${items.map((item) => `<li>${item}</li>`).join('')}</ul>`;
+}
+
+/** @returns {{ id: string, label: string, html: string }[]} */
+function manualTabs() {
   const modClick = isMac ? '⌘-click' : 'Ctrl+click';
   const modShift = (k) => chord(k, { shift: true });
-  return `
-    <section class="manual-section manual-block">
-      <h3 class="manual-section-title">Stage &amp; selection</h3>
-      <table class="manual-table">
-        ${row('Scroll wheel', 'Zoom toward cursor')}
-        ${row('Drag empty canvas', 'Marquee-select instances fully inside the box')}
-        ${row('Click empty canvas', 'Clear selection (unless marquee)')}
-        ${row(modClick, 'Add or remove instance from selection')}
-        ${row('Shift / ⌘ / Ctrl + marquee', 'Add fully-inside instances to selection')}
-        ${row('Drag instance', 'Move selection; other selected instances move together')}
-        ${row('Space + drag', 'Pan stage')}
-        ${row('Middle mouse + drag', 'Pan stage')}
-        ${row('Double-click instance', 'Select and focus scene list')}
-        ${row('Shift while dragging', 'Temporarily flip instance snap and grid snap')}
-        ${row('[ ]', 'Send selection backward / forward in z-order')}
-        ${row(chord('Z'), 'Undo')}
-        ${row(modShift('Z') + ' / ' + chord('Y'), 'Redo')}
-        ${row('Click mesh / region', 'Select that slot on the hit instance')}
-      </table>
-    </section>
-    <section class="manual-section manual-block">
-      <h3 class="manual-section-title">Scene list &amp; transport</h3>
-      <table class="manual-table">
-        ${row(chord('C'), 'Duplicate selected instance(s)')}
-        ${row(chord('H'), 'Hide or show selected instance(s)')}
-        ${row(modShift('L'), 'Lock or unlock selected instance(s)')}
-        ${row(modShift('A'), 'Toggle “global animations on” for selection')}
-        ${row('Delete / Backspace', 'Delete selected instance(s)')}
-        ${row('↑ ↓', 'Move focus in the active panel (scene, slots, bones, animations)')}
-        ${row('← →', 'Scrub transport when an animation is active')}
-        ${row('Drag scene row', 'Reorder draw order (z-index)')}
-        ${row('Right-click name', 'Copy instance or skin name')}
-        ${row('Double-click scene name', 'Rename instance')}
-      </table>
-      <p class="manual-note">With nothing selected, Play / Pause / Setup pose and the seek bar apply to the whole stage (respecting per-instance “global animations on”). With a selection, transport targets only those instances.</p>
-    </section>
-    <section class="manual-section manual-block">
-      <h3 class="manual-section-title">Slots &amp; bones</h3>
-      <table class="manual-table">
-        ${row('H (Slots panel focused)', 'Toggle hide on the highlighted slot')}
-        ${row('Pulse / mask buttons', 'Slot tint plus filled outline on the selected slot')}
-      </table>
-    </section>
-    <section class="manual-section manual-block">
-      <h3 class="manual-section-title">Asset health</h3>
-      <ul class="manual-list">
-        <li><strong>Inspect</strong> — One selected skeleton: export + runtime report (JSON exports only for full scan).</li>
-        <li><strong>♥ Asset health</strong> (stage toolbar, right) — Full list; hover column headers for meanings.</li>
-        <li><strong>Score chip</strong> — Left of each scene name; opens that asset’s report. Hover issues in the modal for fix hints.</li>
-        <li><strong>Hide all / Show all</strong> — Visibility for every skeleton on stage.</li>
-      </ul>
-    </section>
-    <section class="manual-section manual-block">
-      <h3 class="manual-section-title">Transform (inspector)</h3>
-      <p class="manual-note">Fit, Center, Stop, and Reset use the current selection when any instance is selected; otherwise they apply to every instance on the stage. Reset restores the asset baseline (transform, skins, tracks, visibility) from when it was added or the scene was loaded. X / Y / Rot / SX / SY edit the same scope.</p>
-    </section>
-    <section class="manual-section manual-block">
-      <h3 class="manual-section-title">Animations panel</h3>
-      <ul class="manual-list">
-        <li><strong>Speed</strong> — With no selection, adjusts speed for all instances; with selection, only those instances.</li>
-        <li><strong>Loop</strong> — Per-instance loop for the active track (disabled when multiple skeletons are selected).</li>
-        <li><strong>Apply globally</strong> — When checked, picking an animation applies it to every instance (still respects “global animations on”).</li>
-        <li><strong>Global animations on</strong> — At the bottom of the panel (also ${modShift('A')} on selection). When off, stage Play skips that skeleton unless you pick an animation for it directly.</li>
-        <li>Filter fields on Slots, Skins, Bones, and Animations live in the card header and hide non-matching rows. Arrow keys walk the filtered list.</li>
-        <li>Multi-select disables track tabs and the animation list; speed, loop, apply-global, and stage toggle still work on the selection or whole stage.</li>
-      </ul>
-    </section>
-    <section class="manual-section manual-block">
-      <h3 class="manual-section-title">Menu &amp; other</h3>
-      <ul class="manual-list">
-        <li><strong>New scene</strong> — Clears the stage.</li>
-        <li><strong>Snap on/off</strong> — Edge and center snapping while dragging instances (Shift inverts while dragging).</li>
-        <li><strong>Grid</strong> — World-unit grid overlay; origin snaps to the grid. Size is 8 / 16 / 32 / 64. Shift also flips grid while dragging. Instance AABB snap runs first, then grid.</li>
-        <li><strong>Debug</strong> — Scene card button. Bones, meshes, clipping, regions, paths, bounding boxes and events; IK lines and physics gizmos are extra.</li>
-        <li><strong>Open / Save scene</strong> — JSON layout plus separate skeleton files on open.</li>
-        <li><strong>Clear all assets</strong> — Wipes the saved stage, files, and UI prefs in this browser and reloads as a first visit.</li>
-        <li><strong>Reload / reopen</strong> — Dropped images and skeletons are not kept after reload or closing the tab. Drop the files again to continue.</li>
-        <li><strong>Screen size</strong> — Gold frame on stage; Center actions align to this frame’s center.</li>
-        <li><strong>Performance → Selected</strong> — Toggle metrics for selection vs entire stage.</li>
-        <li><strong>Scene Hide</strong> — Hide or show every skeleton at once.</li>
-        <li>Drop files on the page to import skeletons, atlases, and images, or a Tabula export: a <code>.tbla</code> file, or <code>assets.manifest.json</code> together with its <code>.tbla</code> bundles (or loose files). An export with several skeletons asks which ones to add.</li>
-      </ul>
-    </section>
-  `;
+  return [
+    {
+      id: 'start',
+      label: 'Start',
+      html: section('Open skeletons', list([
+        '<strong>Open</strong> (header) or drop files on the stage: a Spine skeleton (<code>.json</code>, <code>.atlas</code> and its page images), or a Tabula export: a <code>.tbla</code> file, or <code>assets.manifest.json</code> with its <code>.tbla</code> bundles or loose files. An export with several skeletons asks which ones to add.',
+        '<strong>New</strong> clears the stage. <strong>Undo / Redo</strong> sit left of it.',
+        'The <strong>⋯</strong> menu holds Load samples, this manual, <strong>Open scene</strong> / <strong>Save scene</strong> and Clear browser data.',
+        '<strong>Save scene</strong> downloads the layout as <code>.json</code>: positions, skins, tracks, speed and camera, not the skeleton files. <strong>Open scene</strong> reads it, asks for the skeleton files, and places them as saved.',
+        'Dropped files are not kept after a reload or closing the tab; drop them again to continue. <strong>Clear browser data</strong> also wipes UI prefs and reloads as a first visit.',
+      ]))
+        + section('Layout', list([
+          '<strong>Tool rail</strong> (left): Outliner and Performance open in the side drawer; Animations opens the bottom drawer once a skeleton is selected.',
+          '<strong>Stage toolbar</strong>: background, screen frame and zoom · Snap and Grid · Debug and Health.',
+          'Drag a drawer edge to resize it; double-click the edge to reset.',
+        ])),
+    },
+    {
+      id: 'stage',
+      label: 'Stage',
+      html: section('Mouse', table([
+        row('Scroll wheel', 'Zoom toward the cursor'),
+        row('Space + drag / middle drag', 'Pan'),
+        row('Click skeleton', 'Select it'),
+        row(modClick, 'Add or remove a skeleton from the selection'),
+        row('Drag empty stage', 'Box-select skeletons fully inside; Shift / ⌘ / Ctrl adds'),
+        row('Click empty stage', 'Clear the selection and every slot, bone and attachment highlight'),
+        row('Drag skeleton', 'Move the selection together'),
+        row('Shift while dragging', 'Flip Snap and Grid for this drag'),
+        row('Click mesh / region', 'Highlight that slot'),
+        row('Double-click skeleton', 'Select it and show it in the Outliner'),
+      ]))
+        + section('Toolbar', list([
+          '<strong>Background</strong>: dark, checker, light or a custom colour.',
+          '<strong>Screen size</strong>: the frame drawn on the stage; Center places skeletons in it. Add your own sizes in its menu.',
+          '<strong>Zoom</strong>: − and +; click the percentage to reset the view.',
+          '<strong>Snap</strong> snaps edges and centres to other skeletons; <strong>Grid</strong> snaps origins to a world grid of 8–64 units. Snap runs first, then Grid.',
+          '<strong>Debug</strong>: overlays for bones, IK, physics, regions, mesh hulls and triangles, clipping, paths, bounding boxes and events. “Selected assets only” limits them to the selection.',
+        ])),
+    },
+    {
+      id: 'outliner',
+      label: 'Outliner',
+      html: section('Tree', table([
+        row('Asset ▸ Bones & slots ▸ bone ▸ slot ▸ attachment', 'One tree per skeleton, with Skins, Constraints, Events and Draw order beside it'),
+        row('Click asset name', 'Select and open it, shutting the others; click again to drop its slot / bone'),
+        row('Click bone', 'Mark it on the stage; live world values under the tree (read-only)'),
+        row('Click slot', 'Highlight it on the stage until clicked again; Pulse and outline colour appear under the tree'),
+        row('Click attachment', 'Highlight its slot; type, size, region and vertices under the tree. ● marks the one showing now'),
+        row('◆ badge', 'Keyed in the playing animation'),
+        row('Alt-click arrow', 'Open or shut a whole branch'),
+        row('Alt-click eye', 'Show only this slot or bone branch; again shows everything'),
+        row('Hover bone / slot', 'Faint mark on the stage'),
+        row('Right-click row', 'Copy name, hide, show only, go to slot / bone / draw order'),
+        row('Drag asset row', 'Change draw order (z-index)'),
+        row('Double-click asset name', 'Rename'),
+      ]))
+        + section('Filters', list([
+          'Type buttons show only bones, slots, attachments, constraints, events, draw order or hidden slots; Shift adds a type.',
+          'The filter field keeps matching rows with their parents opened. Arrow keys walk the filtered rows.',
+          '<strong>Hide all</strong> hides or shows every skeleton.',
+        ])),
+    },
+    {
+      id: 'animations',
+      label: 'Animations',
+      html: section('Drawer', list([
+        'Pick an animation in the list to play it on the selected track. <strong>Play / Pause</strong> and frame stepping are in the timeline toolbar.',
+        '<strong>Speed</strong> with <strong>Selected / All</strong>: Selected changes speed and mode on the selected skeleton; All changes every skeleton and copies the selected one’s speed and mode to the others.',
+        '<strong>Mode</strong>: loop, once (holds the last frame), ping-pong or reverse. <strong>Mix</strong>: crossfade time between animations.',
+        '<strong>Seconds / Frames</strong> and fps set the ruler and frame stepping. <strong>Keys</strong> shows every keyframe of the track (read-only); drag a row to scrub.',
+        'With several skeletons selected the list and tracks are off; speed, mode and Selected / All still apply.',
+      ])),
+    },
+    {
+      id: 'panels',
+      label: 'Panels',
+      html: section('Transform', list([
+        'Acts on the selection, or every skeleton when nothing is selected.',
+        '<strong>Fit view</strong> moves the camera only · <strong>Center</strong> puts skeletons in the screen frame · <strong>Setup pose</strong> stops and shows the setup pose · <strong>Revert</strong> returns position, scale, skins, tracks and visibility to how they were when opened.',
+        'X / Y / Rot / SX / SY edit the same scope. <strong>Bounds</strong> is the live size.',
+      ]))
+        + section('Performance', list([
+          '<strong>Selected / All</strong>: measure the selection or the whole stage.',
+          'FPS, estimated atlas VRAM, vertices, draw calls, bones, constraints, clipping and blend modes for the current pose.',
+        ]))
+        + section('Health', list([
+          '<strong>Health</strong> (stage toolbar) opens the selected skeleton’s report, or every skeleton’s scores when none or several are selected. <strong>← All assets</strong> goes from a report to the list.',
+          'The score chip by each asset name opens its report. Hover an issue for fix hints, and column headers for their meaning.',
+        ])),
+    },
+    {
+      id: 'keys',
+      label: 'Shortcuts',
+      html: section('Keyboard', table([
+        row('?', 'This manual'),
+        row(chord('Z'), 'Undo'),
+        row(modShift('Z') + ' / ' + chord('Y'), 'Redo'),
+        row(chord('C'), 'Duplicate selected skeletons'),
+        row(chord('H'), 'Hide or show selected skeletons'),
+        row(modShift('L'), 'Lock or unlock selected skeletons'),
+        row('Delete / Backspace', 'Delete selected skeletons'),
+        row('[ ]', 'Send selection backward / forward'),
+        row('S', 'Flip the selected skeleton between its current and previous skin'),
+        row('O', 'Show or hide the selection outline on the stage'),
+        row('H (Outliner focused)', 'Hide or show the selected slot'),
+        row('↑ ↓', 'Walk Outliner rows, or the animation list when focused'),
+        row('← →', 'Previous / next frame; open or shut a branch when the Outliner has focus'),
+        row('Home / End', 'Go to the start / end of the animation'),
+        row('Esc', 'Close a dialog'),
+      ])),
+    },
+  ];
 }
 
 export function bindManual() {
@@ -123,7 +171,41 @@ export function bindManual() {
     return { open: () => {}, close: () => {} };
   }
 
-  body.innerHTML = renderManualBody();
+  const tabs = manualTabs();
+  const tabBar = document.getElementById('manual-tabs');
+  /** @param {string} id */
+  const show = (id) => {
+    const tab = tabs.find((item) => item.id === id) || tabs[0];
+    body.innerHTML = tab.html;
+    body.scrollTop = 0;
+    tabBar?.querySelectorAll('[role="tab"]').forEach((button) => {
+      const on = /** @type {HTMLElement} */ (button).dataset.tab === tab.id;
+      button.setAttribute('aria-selected', String(on));
+      button.tabIndex = on ? 0 : -1;
+    });
+    try { localStorage.setItem(MANUAL_TAB_KEY, tab.id); } catch { /* ignore */ }
+  };
+  if (tabBar) {
+    tabBar.innerHTML = tabs.map((tab) => `<button type="button" role="tab" class="manual-tab" data-tab="${tab.id}">${tab.label}</button>`).join('');
+    tabBar.addEventListener('click', (event) => {
+      const button = event.target instanceof Element ? event.target.closest('[data-tab]') : null;
+      if (button) show(/** @type {HTMLElement} */ (button).dataset.tab || '');
+    });
+    // Left / right walk the tabs, as in any tab list.
+    tabBar.addEventListener('keydown', (event) => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      event.preventDefault();
+      event.stopPropagation();
+      const buttons = [...tabBar.querySelectorAll('[role="tab"]')];
+      const at = buttons.findIndex((button) => button.getAttribute('aria-selected') === 'true');
+      const next = /** @type {HTMLElement} */ (buttons[(at + (event.key === 'ArrowRight' ? 1 : buttons.length - 1)) % buttons.length]);
+      show(next.dataset.tab || '');
+      next.focus();
+    });
+  }
+  let saved = '';
+  try { saved = localStorage.getItem(MANUAL_TAB_KEY) || ''; } catch { /* ignore */ }
+  show(saved);
 
   const open = () => {
     modal.hidden = false;

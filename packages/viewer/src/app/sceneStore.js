@@ -19,6 +19,10 @@ import { DEFAULT_GRID_SIZE } from '../constants.js';
  * @property {boolean} pulse
  * @property {number} maskColorIndex
  * @property {string | null} lastAnimationName
+ * @property {Record<number, string>} [savedTracks] tracks before Setup pose, for Play
+ * @property {Set<string>} [previousSkins] skins before the last change, for S
+ * @property {string | null} [hoverBone] bone under the pointer in the outliner
+ * @property {Map<string, { count: number, time: number, animation: string }>} [eventLog] fired events since Setup pose
  * @property {boolean} holdSetup
  * @property {boolean} playing
  * @property {boolean} stageAnimations

@@ -1,16 +1,18 @@
-import { GRID_SIZES, MASK_COLORS, TRACK_COLORS, TRACK_COUNT, ZOOM_STEP } from '../constants.js';
-import { setOnDoublePick } from '../composer/input.js';
+import { GRID_SIZES, MASK_COLORS, OUTLINER_STORAGE_KEY, TRACK_COLORS, TRACK_COUNT, ZOOM_STEP } from '../constants.js';
+import { setOnDoublePick, setOnEmptyClick } from '../composer/input.js';
 import { liveSkeletonBounds, formatDimension } from '../features/bounds.js';
-import { measureInstance, sumPerf } from '../features/perf.js';
-import { formatAtlasPageLines, formatPerfAtlasMemory } from '../features/perfDisplay.js';
+import { countSceneDraws, getGpuTextureUnits, getTextureUnits, marginalAtlasBytesForInstance, measureInstance, sceneAtlasMemorySummary, setTextureUnits, sumPerf } from '../features/perf.js';
+import { formatAtlasPageLines, formatMb, formatPerfAtlasMemory } from '../features/perfDisplay.js';
+import { canMeasurePageMemory, measurePageMemory, pageMemoryUnavailableReason, readJsHeap } from '../features/memory.js';
+import { bindBudget, bindRecorder, loadStatsText, recentStutters, recordFrame as recordPerfFrame, renderBudget, trackStutter } from './perfExtras.js';
 import { applySkins } from '../features/skins.js';
-import { applySlotVisibility, toggleSlotHidden } from '../features/slotVisibility.js';
+import { applySlotVisibility, setAllSlotsHidden, toggleSlotHidden } from '../features/slotVisibility.js';
 import { matchesFilter } from '../features/slotPick.js';
+import { buildAssetTree, keyedTargets, openByDefault, pathTo, visibleRows } from '../features/outlinerTree.js';
+import { icon, nodeIcon } from './icons.js';
 import { DEFAULT_DEBUG_FLAGS } from '../features/debugOverlay.js';
+import { selectionMarksVisible, setSelectionMarksVisible } from '../features/highlight.js';
 
-const STAGE_GLOBAL_MARKUP = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.2"/><ellipse cx="8" cy="8" rx="2.6" ry="6.2" fill="none" stroke="currentColor" stroke-width="1.1"/><path d="M2.2 8h11.6" stroke="currentColor" stroke-width="1.1"/></svg>';
-
-const SLOT_EYE_MARKUP = '<svg class="eye-icon eye-open" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M8 3.5C5 3.5 2.4 5.8 1.5 8c.9 2.2 3.5 4.5 6.5 4.5s5.6-2.3 6.5-4.5C13.6 5.8 11 3.5 8 3.5zm0 7.2a2.7 2.7 0 110-5.4 2.7 2.7 0 010 5.4z"/></svg><svg class="eye-icon eye-off" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M8 3.5C5 3.5 2.4 5.8 1.5 8c.7 1.7 2.2 3.4 4.1 4.2l1.2-1.2a2.7 2.7 0 013.8 3.8l1.1 1.1c-1.9-.8-3.4-2.5-4.1-4.2.9-2.2 3.5-4.5 6.5-4.5.8 0 1.5.1 2.2.3l-1.2 1.2a2.7 2.7 0 01-3.8-3.8L9.8 4.8C9.2 4.6 8.6 4.5 8 4.5c-3 0-5.6 2.3-6.5 4.5z"/><path stroke="currentColor" stroke-width="1.2" d="M2.5 2.5 13.5 13.5"/></svg>';
 import { currentTrackEntry } from '../tabula/skeletonAccess.js';
 import { loadUiState, saveUiState } from '../persistence/uiState.js';
 import { serializeScene } from '../persistence/sceneFile.js';
@@ -27,14 +29,14 @@ import {
   shiftZ,
   subscribe,
 } from '../app/sceneStore.js';
-import { redo, undo, withHistory } from '../app/history.js';
+import { canRedo, canUndo, redo, undo, withHistory } from '../app/history.js';
 import {
   centerInstances,
+  centerAllInstances,
   deleteInstance,
   duplicateInstance,
   fitInstances,
   resetInstancesToBaseline,
-  stopInstances,
   importFiles,
   loadSamples,
   newScene,
@@ -47,19 +49,21 @@ import {
   setDebugFlags,
   setRestoreProgress,
   getHealthReportForInstance,
+  getLoadStatsForInstance,
+  getUpdateMsForInstance,
   getHealthScanStateForInstance,
 } from '../app/session.js';
-import { camera, fitWorldRect, readFps, resetCamera, screenFrameBounds, setScreenFrame, setStageBackground, zoomBy } from '../app/stage.js';
+import { camera, fitWorldRect, readFps, readFrameStats, resetCamera, screenFrameBounds, setScreenFrame, setStageBackground, zoomBy } from '../app/stage.js';
 import { formatScreenSize, loadScreenState, saveScreenState } from '../persistence/screenSizes.js';
 import {
   pickTransportInstance,
   resolveAnimTargets,
-  resolveTransportIsPlaying,
 } from './transportLogic.js';
 import { bindManual } from './manual.js';
 import { bindHealthModals } from './healthModal.js';
 import { applyHealthScoreChipStyle } from '../features/assetHealth/findingHelp.js';
 import { bindDrawers, openTool } from './drawers.js';
+import { bindSimpleMode } from './simpleMode.js';
 import { flashTimelineEvent, refreshTimeline, renderTimeline } from './timeline.js';
 import { applyTrackMode, poseTime, setPoseTime, trackModeOf } from '../app/playback.js';
 
@@ -71,14 +75,14 @@ let healthUi = null;
 
 /** @type {ReturnType<typeof loadUiState>} */
 let ui = loadUiState();
+setSelectionMarksVisible(ui.selectionMarks !== false);
 /** @type {string} */
-let focusedPanel = 'slots-panel';
+/** Panel the arrow keys and H act on; none until one is clicked. */
+let focusedPanel = '';
 /** @type {ReturnType<typeof loadScreenState>} */
 let screens = loadScreenState();
 const panelFilters = {
-  slots: '',
-  skins: '',
-  bones: '',
+  outliner: '',
   animations: '',
 };
 
@@ -130,6 +134,7 @@ export function bindUi() {
   bindChrome();
   bindCollapsibles();
   bindDrawers();
+  bindSimpleMode({ setTrack: (inst, track, name) => withHistory(() => setTrack(inst, track, name)), clearTrack: (inst, track) => withHistory(() => clearTrack(inst, track)) });
   bindFilters();
   bindTransformFields();
   bindDebugFlags();
@@ -142,19 +147,32 @@ export function bindUi() {
   );
   bindHoverTips();
   subscribe(render);
+  // Rows are rebuilt on redraw and can vanish under the pointer without a leave event; the list's own leave clears hover.
+  document.getElementById('scene-list')?.addEventListener('pointerleave', () => {
+    for (const inst of scene.instances) inst.hoverBone = null;
+  });
   void discardBrowserSession().then(() => {
     render();
   });
   window.addEventListener('pagehide', () => {
     void discardBrowserSession();
   });
+  // Empty stage drops the slot, bone and attachment highlights too, not just the selection.
+  setOnEmptyClick(() => {
+    for (const inst of scene.instances) {
+      if (inst.selectedSlot) setSelectedSlot(inst, null);
+      inst.selectedBone = null;
+    }
+    outlinerAttachment = null;
+  });
   setOnDoublePick((id) => {
     focusedPanel = 'scene-panel';
     openTool('outliner');
     document.getElementById('scene-panel')?.classList.remove('is-collapsed');
     document.getElementById('transform-all-panel')?.classList.remove('is-collapsed');
+    outlinerScrollPending = true;
+    outlinerCursor = `${id}|asset`;
     selectInstance(id);
-    document.querySelector(`#scene-list li[data-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'nearest' });
   });
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
@@ -226,10 +244,16 @@ function bindHoverTips() {
 function bindChrome() {
   document.getElementById('btn-zoom-in')?.addEventListener('click', () => { zoomBy(ZOOM_STEP); refreshZoom(); });
   document.getElementById('btn-zoom-out')?.addEventListener('click', () => { zoomBy(-ZOOM_STEP); refreshZoom(); });
-  document.getElementById('btn-zoom-reset')?.addEventListener('click', () => { resetCamera(); refreshZoom(); });
+  document.getElementById('btn-center-all')?.addEventListener('click', () => {
+    if (!scene.instances.length) return;
+    withHistory(() => centerAllInstances());
+    showScreenFrame();
+  });
+  document.getElementById('zoom-label')?.addEventListener('click', () => { resetCamera(); refreshZoom(); });
+  document.getElementById('btn-undo')?.addEventListener('click', () => { void undo(); });
+  document.getElementById('btn-redo')?.addEventListener('click', () => { void redo(); });
   document.getElementById('btn-transform-fit-all')?.addEventListener('click', () => { fitTransformScope(); refreshZoom(); });
   document.getElementById('btn-transform-center-all')?.addEventListener('click', () => centerTransformScope());
-  document.getElementById('btn-transform-stop-all')?.addEventListener('click', () => stopTransformScope());
   document.getElementById('btn-transform-reset-all')?.addEventListener('click', () => resetAssetsToBaseline());
   document.getElementById('btn-scene-visibility')?.addEventListener('click', () => {
     if (!scene.instances.length) return;
@@ -250,6 +274,7 @@ function bindChrome() {
     scene.snapEnabled = !scene.snapEnabled;
     emit();
   });
+  document.getElementById('btn-marks')?.addEventListener('click', toggleSelectionMarks);
   document.getElementById('btn-grid')?.addEventListener('click', () => {
     scene.gridEnabled = !scene.gridEnabled;
     emit();
@@ -260,15 +285,6 @@ function bindChrome() {
     if (GRID_SIZES.includes(size)) scene.gridSize = size;
     emit();
   });
-  document.getElementById('stage-animations')?.addEventListener('click', () => {
-    if (selectionCount() > 1) runOnSceneSelection(toggleStageAnimations);
-    else {
-      const inst = selected();
-      if (inst) toggleStageAnimations(inst);
-    }
-  });
-  document.getElementById('btn-play')?.addEventListener('click', () => playTransport());
-  document.getElementById('btn-pause')?.addEventListener('click', () => pauseTransport());
   document.getElementById('btn-setup')?.addEventListener('click', () => toggleSetup());
   document.getElementById('btn-samples')?.addEventListener('click', () => { void loadSamples().catch((error) => showBanner(String(error))); });
   document.getElementById('btn-save')?.addEventListener('click', saveScene);
@@ -334,24 +350,28 @@ function bindChrome() {
   seekBar?.addEventListener('pointerup', () => { scene.scrubbing = false; });
   seekBar?.addEventListener('pointercancel', () => { scene.scrubbing = false; });
   document.getElementById('btn-pulse-toggle')?.addEventListener('click', () => {
-    const inst = selected();
-    if (!inst) return;
-    inst.pulse = !inst.pulse;
+    const targets = highlightTargets();
+    if (!targets.length) return;
+    const next = !targets[0].pulse;
+    for (const inst of targets) inst.pulse = next;
     emit();
   });
   document.getElementById('btn-mask-color')?.addEventListener('click', () => {
-    const inst = selected();
-    if (!inst) return;
-    inst.maskColorIndex = (inst.maskColorIndex + 1) % MASK_COLORS.length;
+    const targets = highlightTargets();
+    if (!targets.length) return;
+    const next = (targets[0].maskColorIndex + 1) % MASK_COLORS.length;
+    for (const inst of targets) inst.maskColorIndex = next;
     emit();
   });
-  document.getElementById('btn-perf-scope')?.addEventListener('click', () => {
-    const next = scene.perfScope === 'selected' ? 'all' : 'selected';
-    ui.perfScope = next;
-    setPerfScope(next);
-    persistUi();
+  document.querySelectorAll('[data-perf-scope]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const next = /** @type {HTMLElement} */ (button).dataset.perfScope === 'all' ? 'all' : 'selected';
+      ui.perfScope = next;
+      setPerfScope(next);
+      persistUi();
+    });
   });
-  for (const id of ['slots-panel', 'skins-panel', 'animations-panel', 'bones-panel', 'performance-panel', 'scene-panel']) {
+  for (const id of ['animations-panel', 'performance-panel', 'scene-panel']) {
     document.getElementById(id)?.addEventListener('pointerdown', () => {
       focusedPanel = id;
       renderFocus();
@@ -373,17 +393,15 @@ function bindCollapsibles() {
 
 function bindFilters() {
   const map = [
-    ['slots-filter', 'slots', renderSlots],
-    ['skins-filter', 'skins', renderSkins],
-    ['bones-filter', 'bones', renderBones],
+    ['outliner-filter', 'outliner', () => renderSceneList()],
     ['animations-filter', 'animations', renderAnimations],
   ];
   for (const [id, key, renderFn] of map) {
     const input = /** @type {HTMLInputElement | null} */ (document.getElementById(id));
     if (!input) continue;
-    input.value = panelFilters[/** @type {'slots' | 'skins' | 'bones' | 'animations'} */ (key)];
+    input.value = panelFilters[/** @type {'outliner' | 'animations'} */ (key)];
     input.addEventListener('input', () => {
-      panelFilters[/** @type {'slots' | 'skins' | 'bones' | 'animations'} */ (key)] = input.value;
+      panelFilters[/** @type {'outliner' | 'animations'} */ (key)] = input.value;
       renderFn(selected());
     });
   }
@@ -419,6 +437,29 @@ function bindDebugFlags() {
       close();
     }
   });
+  /** @param {boolean} on */
+  const setAll = (on) => {
+    ui.debug = { ...DEFAULT_DEBUG_FLAGS, ...(ui.debug || {}) };
+    document.querySelectorAll('#debug-modal input[data-debug]').forEach((node) => {
+      const input = /** @type {HTMLInputElement} */ (node);
+      input.checked = on;
+      if (input.dataset.debug) ui.debug[input.dataset.debug] = on;
+    });
+    persistUi();
+    setDebugFlags(ui.debug);
+    syncDebugButton();
+  };
+  const scope = /** @type {HTMLInputElement | null} */ (document.getElementById('debug-selected-only'));
+  if (scope) {
+    scope.checked = !!ui.debug?.selectedOnly;
+    scope.addEventListener('change', () => {
+      ui.debug = { ...DEFAULT_DEBUG_FLAGS, ...(ui.debug || {}), selectedOnly: scope.checked };
+      persistUi();
+      setDebugFlags(ui.debug);
+    });
+  }
+  document.getElementById('debug-all-on')?.addEventListener('click', () => setAll(true));
+  document.getElementById('debug-all-off')?.addEventListener('click', () => setAll(false));
   document.querySelectorAll('#debug-modal input[data-debug]').forEach((node) => {
     const input = /** @type {HTMLInputElement} */ (node);
     const key = input.dataset.debug;
@@ -438,7 +479,8 @@ function syncDebugButton() {
   const button = document.getElementById('btn-debug');
   if (!button) return;
   const flags = ui.debug || DEFAULT_DEBUG_FLAGS;
-  button.classList.toggle('is-active', Object.values(flags).some(Boolean));
+  // The scope switch is not an overlay, so it alone does not light the button.
+  button.classList.toggle('is-active', Object.entries(flags).some(([key, on]) => key !== 'selectedOnly' && on));
 }
 
 function mixedOr(values) {
@@ -508,7 +550,7 @@ function bindActionMenu() {
     if (!willOpen) return;
     const rect = trigger.getBoundingClientRect();
     panel.style.top = `${Math.round(rect.bottom + 6)}px`;
-    panel.style.left = `${Math.round(rect.left)}px`;
+    panel.style.left = `${Math.round(Math.max(8, rect.right - panel.offsetWidth))}px`;
   });
   panel.addEventListener('click', (event) => {
     if (event.target instanceof Element && event.target.closest('button')) close();
@@ -597,6 +639,16 @@ function renderScreenMenu() {
   }
 }
 
+let hadInstances = false;
+
+/** Zoom the stage so the screen frame fills it, centered. */
+function showScreenFrame() {
+  const bounds = screenFrameBounds();
+  if (!bounds) return;
+  fitWorldRect(bounds);
+  refreshZoom();
+}
+
 /** @param {string} id @param {boolean} [fit] */
 function chooseScreen(id, fit = true) {
   const item = screens.all.find((entry) => entry.id === id) || screens.all[0];
@@ -620,38 +672,265 @@ function render() {
   const inst = selected();
   const snap = document.getElementById('btn-snap');
   snap?.classList.toggle('is-active', scene.snapEnabled);
-  snap && (snap.textContent = scene.snapEnabled ? 'Snap on' : 'Snap off');
+  snap?.setAttribute('aria-pressed', String(!!scene.snapEnabled));
+  const marksBtn = document.getElementById('btn-marks');
+  marksBtn?.classList.toggle('is-active', selectionMarksVisible());
+  marksBtn?.setAttribute('aria-pressed', String(selectionMarksVisible()));
   const gridBtn = document.getElementById('btn-grid');
   gridBtn?.classList.toggle('is-active', scene.gridEnabled);
-  if (gridBtn) gridBtn.textContent = scene.gridEnabled ? 'Grid on' : 'Grid off';
+  gridBtn?.setAttribute('aria-pressed', String(!!scene.gridEnabled));
   const gridSize = /** @type {HTMLSelectElement | null} */ (document.getElementById('grid-size'));
-  if (gridSize && document.activeElement !== gridSize) gridSize.value = String(scene.gridSize || 16);
+  if (gridSize) {
+    if (document.activeElement !== gridSize) gridSize.value = String(scene.gridSize || 16);
+    gridSize.disabled = !scene.gridEnabled;
+  }
   syncTimelineToolbar();
-  const play = document.getElementById('btn-play');
-  const pause = document.getElementById('btn-pause');
-  if (play) play.hidden = transportIsPlaying();
-  if (pause) pause.hidden = !transportIsPlaying();
+  // The animations drawer needs a skeleton to show; it waits until one is selected.
+  const drawer = document.getElementById('bottom-drawer');
+  const animationsTool = /** @type {HTMLButtonElement | null} */ (document.querySelector('.rail-tool[data-tool="animations"]'));
+  if (drawer && drawer.classList.contains('is-unavailable') !== !inst) {
+    drawer.classList.toggle('is-unavailable', !inst);
+    window.dispatchEvent(new Event('resize'));
+  }
+  if (animationsTool) {
+    // aria-disabled, not disabled: a disabled button gets no hover, so its tip could not say why.
+    animationsTool.setAttribute('aria-disabled', String(!inst));
+    animationsTool.dataset.tip = inst ? 'Animations' : 'Animations · select a skeleton first';
+  }
+  renderUndoButtons();
   renderTransformActionButtons();
   renderTransformFields();
   syncDebugButton();
   const setup = document.getElementById('btn-setup');
   if (setup) {
-    setup.textContent = 'Setup pose';
-    const picks = selectedInstances();
-    if (!scene.instances.length) setup.disabled = true;
-    else if (picks.length) setup.disabled = picks.every((item) => item.holdSetup);
-    else setup.disabled = scene.instances.every((item) => item.holdSetup);
+    const picks = selectedInstances().length ? selectedInstances() : scene.instances;
+    setup.disabled = !picks.length || picks.every((item) => item.holdSetup && !item.playing);
   }
   document.getElementById('drop-hint')?.toggleAttribute('hidden', scene.instances.length > 0);
-  renderSceneList();
-  renderSlots(inst);
-  renderSkins(inst);
+  // The drop screen just went away: start with the whole screen frame in view, not wherever assets landed.
+  if (!hadInstances && scene.instances.length) showScreenFrame();
+  hadInstances = scene.instances.length > 0;
+  scheduleSceneList();
   renderAnimations(inst);
-  renderBones(inst);
   refreshZoom();
   refreshLive();
   renderFocus();
   healthUi?.refreshChrome();
+}
+
+/** Branch open state the user set, by node key; untouched branches use `openByDefault`. @type {Map<string, boolean>} */
+const outlinerOpen = new Map();
+/** Instances whose open branches were already seeded from storage. @type {Set<string>} */
+const outlinerSeeded = new Set();
+let outlinerOpenDirty = false;
+
+/** @param {string} key @param {boolean} open */
+function setOutlinerOpen(key, open) {
+  outlinerOpen.set(key, open);
+  outlinerOpenDirty = true;
+}
+
+/** Open branches per asset file, so dropping the same asset again opens it the same way. @returns {Record<string, string[]>} */
+function readOutlinerOpen() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(OUTLINER_STORAGE_KEY) || '{}');
+    return raw && typeof raw === 'object' ? raw : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Give instances seen for the first time the open branches saved for their asset. */
+function seedOutlinerOpen() {
+  /** @type {Record<string, string[]> | null} */
+  let stored = null;
+  for (const inst of scene.instances) {
+    if (outlinerSeeded.has(inst.id)) continue;
+    outlinerSeeded.add(inst.id);
+    stored ??= readOutlinerOpen();
+    for (const suffix of stored[inst.assetKey || inst.name] || []) {
+      if (!outlinerOpen.has(`${inst.id}|${suffix}`)) outlinerOpen.set(`${inst.id}|${suffix}`, true);
+    }
+  }
+}
+
+function saveOutlinerOpen() {
+  if (!outlinerOpenDirty) return;
+  outlinerOpenDirty = false;
+  const stored = readOutlinerOpen();
+  /** @type {Record<string, string[]>} */
+  const next = {};
+  for (const inst of scene.instances) next[inst.assetKey || inst.name] ??= [];
+  for (const [key, open] of outlinerOpen) {
+    if (!open) continue;
+    const cut = key.indexOf('|');
+    const inst = scene.instances.find((item) => item.id === key.slice(0, cut));
+    if (inst) next[inst.assetKey || inst.name].push(key.slice(cut + 1));
+  }
+  for (const [asset, branches] of Object.entries(next)) stored[asset] = [...new Set(branches)];
+  try {
+    localStorage.setItem(OUTLINER_STORAGE_KEY, JSON.stringify(stored));
+  } catch {
+    /* ignore */
+  }
+}
+/** Rows drawn last, in order, for arrow-key walking. @type {import('../features/outlinerTree.js').OutlinerRow[]} */
+let outlinerRows = [];
+/** Key of the row the arrow keys move from. @type {string | null} */
+let outlinerCursor = null;
+/** Attachment rows drawn last, so the live pass can mark the attachment each slot is showing. @type {{ el: HTMLElement, inst: import('../app/sceneStore.js').SpineInstance, slot: string, attachment: unknown }[]} */
+let outlinerAttachmentRows = [];
+/** Last selection revealed per instance, so canvas picks open their branch once. @type {Map<string, string>} */
+const outlinerRevealed = new Map();
+/** @type {string | null} */
+let outlinerAutoOpened = null;
+/** Row kinds the type buttons keep; empty shows every kind. @type {Set<string>} */
+const outlinerKinds = new Set();
+const OUTLINER_KIND_BUTTONS = [
+  ['bone', 'bone', 'Bones'],
+  ['slot', 'slot', 'Slots'],
+  ['attachment', 'region', 'Attachments'],
+  ['constraint', 'constraint', 'Constraints'],
+  ['event', 'event', 'Events'],
+  ['order', 'order', 'Draw order'],
+  ['hidden', 'eyeOff', 'Hidden slots'],
+];
+
+/** @returns {boolean} */
+function outlinerFiltering() {
+  return !!panelFilters.outliner.trim() || outlinerKinds.size > 0;
+}
+
+function renderOutlinerTypes() {
+  const bar = document.getElementById('outliner-types');
+  if (!bar) return;
+  if (!bar.childElementCount) {
+    for (const [kind, glyph, label] of OUTLINER_KIND_BUTTONS) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.kind = kind;
+      button.className = `outliner-type element-${glyph}`;
+      button.innerHTML = icon(glyph);
+      button.setAttribute('aria-label', `Show only ${label.toLowerCase()}`);
+      button.dataset.tip = `Show only ${label.toLowerCase()}. Shift adds to the filter.`;
+      button.addEventListener('click', (event) => {
+        if (event.shiftKey) {
+          if (outlinerKinds.has(kind)) outlinerKinds.delete(kind);
+          else outlinerKinds.add(kind);
+        } else if (outlinerKinds.size === 1 && outlinerKinds.has(kind)) outlinerKinds.clear();
+        else {
+          outlinerKinds.clear();
+          outlinerKinds.add(kind);
+        }
+        renderSceneList();
+      });
+      bar.appendChild(button);
+    }
+    const all = document.createElement('button');
+    all.type = 'button';
+    all.className = 'outliner-type outliner-type-all';
+    all.textContent = 'All';
+    all.dataset.tip = 'Show every type.';
+    all.addEventListener('click', () => {
+      outlinerKinds.clear();
+      renderSceneList();
+    });
+    bar.appendChild(all);
+  }
+  for (const button of bar.querySelectorAll('button[data-kind]')) {
+    button.setAttribute('aria-pressed', String(outlinerKinds.has(/** @type {HTMLElement} */ (button).dataset.kind || '')));
+  }
+  const all = bar.querySelector('.outliner-type-all');
+  if (all) /** @type {HTMLButtonElement} */ (all).disabled = !outlinerKinds.size;
+}
+let outlinerScrollPending = false;
+
+/** @param {import('../features/outlinerTree.js').OutlinerNode} node */
+function isOutlinerOpen(node) {
+  const set = outlinerOpen.get(node.key);
+  if (set !== undefined) return set;
+  return node.kind !== 'asset' && openByDefault(node);
+}
+
+/** Last tree per instance and what it was built from; renders during a stage drag reuse it. @type {Map<string, { sig: string, tree: import('../features/outlinerTree.js').OutlinerNode }>} */
+const outlinerTreeCache = new Map();
+
+/** @param {import('../app/sceneStore.js').SpineInstance} inst */
+function assetTree(inst) {
+  const skeleton = inst.spine?.skeleton;
+  const animations = [];
+  for (let track = 0; track < TRACK_COUNT; track++) animations.push(currentTrackEntry(inst.spine?.state, track)?.animation);
+  // Draw order only matters while its branch is open (the live pass redraws it then).
+  const order = outlinerOpen.get(`${inst.id}|g:order`) ? (skeleton?.drawOrder || []).map((slot) => slot.data.name).join(',') : '';
+  const sig = JSON.stringify([inst.name, skeleton?.data?.name, [...inst.skins], [...inst.hiddenSlots], animations.map((item) => item?.name ?? ''), order]);
+  const cached = outlinerTreeCache.get(inst.id);
+  if (cached?.sig === sig) return cached.tree;
+  const tree = buildAssetTree(inst.id, inst.name, skeleton?.data, {
+    skins: inst.skins,
+    drawOrder: skeleton?.drawOrder,
+    hiddenSlots: inst.hiddenSlots,
+    keyed: keyedTargets(skeleton?.data, animations),
+  });
+  outlinerTreeCache.set(inst.id, { sig, tree });
+  return tree;
+}
+
+/**
+ * Assets Pulse and the outline colour act on: the selected one first, then every asset still showing a clicked slot,
+ * since a highlight stays on until its slot is clicked off.
+ */
+function highlightTargets() {
+  const inst = selected();
+  const rest = scene.instances.filter((item) => item.selectedSlot && item !== inst);
+  return inst ? [inst, ...rest] : rest;
+}
+
+/** The row the selection points at: slot first (it is what the stage highlights), then bone, then the asset. */
+function outlinerSelectionKey() {
+  const inst = selected();
+  if (!inst) return null;
+  if (inst.selectedSlot) return `${inst.id}|s:${inst.selectedSlot}`;
+  if (inst.selectedBone) return `${inst.id}|b:${inst.selectedBone}`;
+  return `${inst.id}|asset`;
+}
+
+/**
+ * Open the selected asset the first time it is selected, and the branches above a slot or bone picked elsewhere
+ * (the stage, arrow keys), then scroll it into view.
+ * @param {import('../features/outlinerTree.js').OutlinerNode[]} trees
+ */
+function revealOutlinerSelection(trees) {
+  const inst = selected();
+  if (!inst) {
+    outlinerAutoOpened = null;
+    return;
+  }
+  if (outlinerAutoOpened !== inst.id) {
+    outlinerAutoOpened = inst.id;
+    outlinerScrollPending = true;
+  }
+  const key = outlinerSelectionKey();
+  if (!key || outlinerRevealed.get(inst.id) === key) return;
+  outlinerRevealed.set(inst.id, key);
+  // Only a slot or bone picked elsewhere (the stage, arrow keys) opens its branch; selecting the asset opens nothing.
+  if (key === `${inst.id}|asset`) return;
+  const tree = trees.find((item) => item.key === `${inst.id}|asset`);
+  const path = tree ? pathTo(tree, (node) => node.key === key) : null;
+  for (const branch of path || []) setOutlinerOpen(branch, true);
+  outlinerCursor = key;
+  outlinerScrollPending = true;
+}
+
+let sceneListQueued = false;
+
+/** Stage drags emit on every pointer move; the tree only needs redrawing once per frame. */
+function scheduleSceneList() {
+  if (sceneListQueued) return;
+  sceneListQueued = true;
+  requestAnimationFrame(() => {
+    sceneListQueued = false;
+    renderSceneList();
+  });
 }
 
 function renderSceneList() {
@@ -673,95 +952,826 @@ function renderSceneList() {
       sceneVisibility.classList.toggle('is-active', allHidden);
     }
   }
-  list.replaceChildren();
+  const inst = selected();
+  const lead = highlightTargets()[0] || null;
+  const pulse = document.getElementById('btn-pulse-toggle');
+  const mask = document.getElementById('btn-mask-color');
+  pulse?.classList.toggle('is-active', !!lead?.pulse);
+  if (pulse) /** @type {HTMLButtonElement} */ (pulse).disabled = !lead;
+  if (mask) {
+    /** @type {HTMLButtonElement} */ (mask).disabled = !lead;
+    if (lead) mask.dataset.mask = MASK_COLORS[lead.maskColorIndex].attr;
+  }
+  const slotName = lead?.selectedSlot || '';
+  document.getElementById('slot-inspector')?.classList.toggle('is-hidden', !slotName);
+  setText('si-name', slotName);
+
+  seedOutlinerOpen();
   const ordered = [...scene.instances].sort((a, b) => a.zIndex - b.zIndex);
-  for (const inst of ordered) {
-    const inSelection = isInstanceSelected(inst.id);
-    const isPrimary = inst.id === scene.selectedId;
-    const row = document.createElement('li');
-    row.className = inSelection ? 'is-selected' : '';
-    row.draggable = true;
-    row.dataset.id = inst.id;
-    const main = document.createElement('div');
-    main.className = 'scene-row-main';
-
-    const healthChip = document.createElement('button');
-    healthChip.type = 'button';
-    healthChip.className = 'scene-health-chip';
-    healthChip.setAttribute('aria-label', `Health score for ${inst.name}`);
-    const hState = getHealthScanStateForInstance(inst);
-    const hReport = getHealthReportForInstance(inst);
-    let chipScore = null;
-    if (hState === 'pending' || !hReport) {
-      healthChip.classList.add('is-pending');
-      healthChip.textContent = '…';
-      healthChip.disabled = true;
-    } else if (hReport) {
-      chipScore = hReport.overallScore;
-      healthChip.textContent = String(chipScore);
-      healthChip.addEventListener('click', (event) => {
-        event.stopPropagation();
-        healthUi?.openDetailForInstanceId(inst.id);
-      });
-    } else {
-      healthChip.classList.add('is-unknown');
-      healthChip.textContent = '—';
-      healthChip.disabled = true;
+  const byId = new Map(ordered.map((item) => [item.id, item]));
+  for (const item of ordered) hookEventLog(item);
+  const trees = ordered.map(assetTree);
+  for (const id of outlinerTreeCache.keys()) if (!byId.has(id)) outlinerTreeCache.delete(id);
+  revealOutlinerSelection(trees);
+  renderOutlinerTypes();
+  outlinerRows = visibleRows(trees, isOutlinerOpen, panelFilters.outliner, outlinerKinds);
+  outlinerPathCache = { key: null, keys: new Set(), index: -1 };
+  outlinerAttachmentRows = [];
+  const selectionKey = outlinerSelectionKey();
+  // Rebuilding drops the focused row; remember it so the tree keys (← →) keep working after a click or arrow step.
+  const active = document.activeElement;
+  const focusedKey = active instanceof HTMLElement && list.contains(active)
+    ? active.closest('li[data-key]')?.getAttribute('data-key') ?? null
+    : null;
+  list.replaceChildren();
+  for (const row of outlinerRows) {
+    const owner = byId.get(row.node.key.slice(0, row.node.key.indexOf('|')));
+    if (!owner) continue;
+    if (row.node.kind !== 'asset') {
+      list.appendChild(outlinerRow(owner, row, row.node.key === selectionKey));
+      continue;
     }
-    applyHealthScoreChipStyle(healthChip, chipScore);
+    list.appendChild(assetRow(owner, row));
+    if (isOutlinerOpen(row.node) && !outlinerFiltering()) list.appendChild(assetSummary(owner, row.node));
+  }
+  if (outlinerRows.length && outlinerFiltering() && outlinerRows.every((row) => row.node.kind === 'asset')) {
+    const empty = document.createElement('li');
+    empty.className = 'panel-empty';
+    empty.textContent = 'No matches';
+    list.appendChild(empty);
+  }
+  if (outlinerScrollPending) {
+    outlinerScrollPending = false;
+    const key = outlinerCursor || selectionKey;
+    if (key) list.querySelector(`li[data-key="${CSS.escape(key)}"]`)?.scrollIntoView({ block: 'nearest' });
+  }
+  if (focusedKey) {
+    const target = (outlinerCursor && list.querySelector(`li[data-key="${CSS.escape(outlinerCursor)}"]`))
+      || list.querySelector(`li[data-key="${CSS.escape(focusedKey)}"]`);
+    /** @type {HTMLElement | null | undefined} */ (target?.querySelector('button.outliner-name, button.scene-name, input'))?.focus({ preventScroll: true });
+  }
+  renderBoneInspector(inst);
+  renderAttachmentInspector();
+  saveOutlinerOpen();
+  pruneOutlinerState(byId);
+}
 
-    const name = document.createElement('button');
-    name.type = 'button';
-    name.className = 'scene-name';
-    name.textContent = inst.name;
-    name.addEventListener('click', (event) => {
-      focusedPanel = 'scene-panel';
-      selectInstance(inst.id, { additive: event.metaKey || event.ctrlKey });
-    });
-    name.addEventListener('dblclick', () => rename(inst));
-    name.addEventListener('contextmenu', (event) => copyText(event, name, inst.name));
-    row.addEventListener('dragstart', (event) => {
-      if (event.target instanceof Element && event.target.closest('.scene-actions')) {
-        event.preventDefault();
-        return;
-      }
-      row.classList.add('is-dragging');
-      event.dataTransfer?.setData('text/plain', inst.id);
-      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
-    });
-    row.addEventListener('dragend', () => row.classList.remove('is-dragging'));
-    row.addEventListener('dragover', (event) => {
-      event.preventDefault();
-      row.classList.add('is-drop-target');
-      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-    });
-    row.addEventListener('dragleave', () => row.classList.remove('is-drop-target'));
-    row.addEventListener('drop', (event) => {
-      event.preventDefault();
+/**
+ * Drop branch state of assets that left the scene (saved branches stay in storage for the next drop).
+ * @param {Map<string, unknown>} live
+ */
+function pruneOutlinerState(live) {
+  for (const key of outlinerOpen.keys()) if (!live.has(key.slice(0, key.indexOf('|')))) outlinerOpen.delete(key);
+  for (const id of outlinerSeeded) if (!live.has(id)) outlinerSeeded.delete(id);
+  for (const id of outlinerRevealed.keys()) if (!live.has(id)) outlinerRevealed.delete(id);
+}
+
+/**
+ * @param {HTMLElement} el
+ * @param {import('../features/outlinerTree.js').OutlinerRow} row
+ */
+function outlinerTwisty(el, row) {
+  const twisty = document.createElement('button');
+  twisty.type = 'button';
+  twisty.className = 'outliner-twisty';
+  const hasChildren = row.node.children.length > 0;
+  twisty.disabled = !hasChildren;
+  if (hasChildren) {
+    const filtering = outlinerFiltering();
+    // While filtering, a branch is open exactly when its next row is one of its children.
+    const next = outlinerRows[row.index + 1];
+    const open = filtering ? !!next && next.path.includes(row.node.key) : isOutlinerOpen(row.node);
+    twisty.classList.toggle('is-open', open);
+    twisty.innerHTML = icon(open ? 'chevronDown' : 'chevronRight');
+    twisty.setAttribute('aria-label', open ? `Collapse ${row.node.name}` : `Expand ${row.node.name}`);
+    twisty.addEventListener('click', (event) => {
       event.stopPropagation();
-      row.classList.remove('is-drop-target');
-      const fromId = event.dataTransfer?.getData('text/plain');
-      if (fromId) withHistory(() => reorderInstances(fromId, inst.id));
+      toggleOutlinerBranch(row.node, event.altKey);
     });
-    main.append(healthChip, name);
-    row.append(main);
-    if (isPrimary && inSelection) {
-      const actions = document.createElement('span');
-      actions.className = 'scene-actions';
-      actions.append(
-        sceneAction(inst.visible ? 'Hide' : 'Show', () => runOnSceneSelection(toggleVisible), '', shortcutLabel('H')),
-        sceneSep(),
-        sceneAction(inst.locked ? 'Unlock' : 'Lock', () => runOnSceneSelection(toggleLocked), '', shortcutLabel('L', true)),
-        sceneSep(),
-        sceneAction('Copy', () => duplicateSceneSelection(), '', shortcutLabel('C')),
-        sceneSep(),
-        sceneAction('Delete', () => deleteSceneSelection(), '', 'Delete'),
-      );
-      row.appendChild(actions);
+  }
+  el.appendChild(twisty);
+}
+
+/**
+ * Open or shut a branch; with Alt, its whole subtree follows.
+ * @param {import('../features/outlinerTree.js').OutlinerNode} node
+ * @param {boolean} [deep]
+ */
+function toggleOutlinerBranch(node, deep = false) {
+  const next = !isOutlinerOpen(node);
+  /** @param {import('../features/outlinerTree.js').OutlinerNode} item */
+  const set = (item) => {
+    if (!item.children.length) return;
+    setOutlinerOpen(item.key, next);
+    if (deep) for (const child of item.children) set(child);
+  };
+  set(node);
+  renderSceneList();
+}
+
+/**
+ * Studio's line under an open skeleton: counts, plus open-all and close-all for the asset's branches.
+ * @param {import('../app/sceneStore.js').SpineInstance} inst
+ * @param {import('../features/outlinerTree.js').OutlinerNode} tree
+ */
+function assetSummary(inst, tree) {
+  const item = document.createElement('li');
+  item.className = 'outliner-summary';
+  const data = inst.spine?.skeleton?.data;
+  const text = document.createElement('span');
+  const bones = data?.bones?.length || 0;
+  const slots = data?.slots?.length || 0;
+  const hidden = inst.hiddenSlots.size;
+  text.textContent = `${bones} ${bones === 1 ? 'bone' : 'bones'} · ${slots} ${slots === 1 ? 'slot' : 'slots'}${hidden ? ` · ${hidden} hidden` : ''}`;
+  item.appendChild(text);
+  if (hidden) {
+    const show = document.createElement('button');
+    show.type = 'button';
+    show.className = 'outliner-cell is-on';
+    show.innerHTML = icon('eyeOff');
+    show.setAttribute('aria-label', `Show the ${hidden} hidden slots of ${inst.name}`);
+    show.dataset.tip = `Show all ${hidden} hidden slots.`;
+    show.addEventListener('click', () => withHistory(() => {
+      setAllSlotsHidden(inst, false);
+      emit();
+    }));
+    item.appendChild(show);
+  }
+  /** @param {boolean} open */
+  const setAll = (open) => {
+    /** @param {import('../features/outlinerTree.js').OutlinerNode} node */
+    const walk = (node) => {
+      if (!node.children.length) return;
+      if (node !== tree) setOutlinerOpen(node.key, open);
+      for (const child of node.children) walk(child);
+    };
+    walk(tree);
+    renderSceneList();
+  };
+  for (const [glyph, label, open] of /** @type {const} */ ([['expandAll', 'Expand all', true], ['collapseAll', 'Collapse all', false]])) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'outliner-cell';
+    button.innerHTML = icon(glyph);
+    button.setAttribute('aria-label', `${label} in ${inst.name}`);
+    button.dataset.tip = `${label} (Alt-click an arrow does one branch).`;
+    button.addEventListener('click', () => setAll(open));
+    item.appendChild(button);
+  }
+  return item;
+}
+
+/**
+ * @param {import('../app/sceneStore.js').SpineInstance} inst
+ * @param {import('../features/outlinerTree.js').OutlinerRow} row
+ */
+function assetRow(inst, row) {
+  const inSelection = isInstanceSelected(inst.id);
+  const isPrimary = inst.id === scene.selectedId;
+  const item = document.createElement('li');
+  item.className = `outliner-asset${inSelection ? ' is-selected' : ''}${inst.visible ? '' : ' is-object-hidden'}`;
+  item.draggable = true;
+  item.dataset.id = inst.id;
+  item.dataset.key = row.node.key;
+  item.setAttribute('role', 'treeitem');
+  item.setAttribute('aria-level', '1');
+  item.setAttribute('aria-selected', String(inSelection));
+  item.setAttribute('aria-expanded', String(isOutlinerOpen(row.node) || outlinerFiltering()));
+  const main = document.createElement('div');
+  main.className = 'scene-row-main';
+  outlinerTwisty(main, row);
+
+  const healthChip = document.createElement('button');
+  healthChip.type = 'button';
+  healthChip.className = 'scene-health-chip';
+  healthChip.setAttribute('aria-label', `Health score for ${inst.name}`);
+  const hState = getHealthScanStateForInstance(inst);
+  const hReport = getHealthReportForInstance(inst);
+  let chipScore = null;
+  if (hState === 'pending' || !hReport) {
+    healthChip.classList.add('is-pending');
+    healthChip.textContent = '…';
+    healthChip.disabled = true;
+  } else if (hReport) {
+    chipScore = hReport.overallScore;
+    healthChip.textContent = String(chipScore);
+    healthChip.addEventListener('click', (event) => {
+      event.stopPropagation();
+      healthUi?.openDetailForInstanceId(inst.id);
+    });
+  } else {
+    healthChip.classList.add('is-unknown');
+    healthChip.textContent = '—';
+    healthChip.disabled = true;
+  }
+  applyHealthScoreChipStyle(healthChip, chipScore);
+
+  const name = document.createElement('button');
+  name.type = 'button';
+  name.className = 'scene-name';
+  name.textContent = inst.name;
+  name.addEventListener('click', (event) => {
+    focusedPanel = 'scene-panel';
+    outlinerCursor = row.node.key;
+    const additive = event.metaKey || event.ctrlKey;
+    // Clicking an asset opens it and shuts the others; the arrows open several side by side.
+    if (!additive) {
+      for (const other of scene.instances) setOutlinerOpen(`${other.id}|asset`, other.id === inst.id);
     }
-    list.appendChild(row);
+    // Back to the asset itself: a plain click drops the slot and bone picked inside it.
+    if (!additive && inst.id === scene.selectedId && (inst.selectedSlot || inst.selectedBone)) {
+      setSelectedSlot(inst, null);
+      inst.selectedBone = null;
+      emit();
+      return;
+    }
+    selectInstance(inst.id, { additive });
+  });
+  name.addEventListener('dblclick', () => rename(inst));
+  name.addEventListener('contextmenu', (event) => openOutlinerMenu(event, inst, row.node));
+  item.addEventListener('dragstart', (event) => {
+    if (event.target instanceof Element && event.target.closest('.scene-actions, .outliner-cell')) {
+      event.preventDefault();
+      return;
+    }
+    item.classList.add('is-dragging');
+    event.dataTransfer?.setData('text/plain', inst.id);
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+  });
+  item.addEventListener('dragend', () => item.classList.remove('is-dragging'));
+  // Only row drags reorder; dropped files fall through to the window's import.
+  const isRowDrag = (/** @type {DragEvent} */ event) => !!event.dataTransfer?.types.includes('text/plain') && !event.dataTransfer.types.includes('Files');
+  item.addEventListener('dragover', (event) => {
+    if (!isRowDrag(event)) return;
+    event.preventDefault();
+    item.classList.add('is-drop-target');
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  });
+  item.addEventListener('dragleave', () => item.classList.remove('is-drop-target'));
+  item.addEventListener('drop', (event) => {
+    item.classList.remove('is-drop-target');
+    if (!isRowDrag(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const fromId = event.dataTransfer?.getData('text/plain');
+    if (fromId) withHistory(() => reorderInstances(fromId, inst.id));
+  });
+  const glyph = document.createElement('span');
+  glyph.className = 'outliner-glyph element-skeleton';
+  glyph.innerHTML = icon('skeleton');
+  main.append(
+    glyph,
+    name,
+    healthChip,
+    outlinerCell('eye', !inst.visible, inst.visible ? `Hide ${inst.name} on the stage. ${shortcutLabel('H')}` : `Show ${inst.name} on the stage. ${shortcutLabel('H')}`, () => withHistory(() => toggleVisible(inst))),
+    outlinerCell('lock', inst.locked, inst.locked ? `Unlock ${inst.name}. ${shortcutLabel('L', true)}` : `Lock ${inst.name} so the stage cannot move it. ${shortcutLabel('L', true)}`, () => withHistory(() => toggleLocked(inst))),
+    assetAction('copy', `Copy ${isPrimary && inSelection && selectionCount() > 1 ? 'the selected assets' : inst.name}. ${shortcutLabel('C')}`, () => {
+      if (!isInstanceSelected(inst.id)) selectInstance(inst.id);
+      duplicateSceneSelection();
+    }),
+    assetAction('trash', `Delete ${isPrimary && inSelection && selectionCount() > 1 ? 'the selected assets' : inst.name}. Delete`, () => {
+      if (!isInstanceSelected(inst.id)) selectInstance(inst.id);
+      deleteSceneSelection();
+    }),
+  );
+  item.append(main);
+  return item;
+}
+
+/**
+ * A row under an asset: group, bone, slot, attachment, skin, constraint, event or draw-order slot.
+ * @param {import('../app/sceneStore.js').SpineInstance} inst
+ * @param {import('../features/outlinerTree.js').OutlinerRow} row
+ * @param {boolean} isSelected
+ */
+function outlinerRow(inst, row, isSelected) {
+  const { node } = row;
+  const item = document.createElement('li');
+  const slotHidden = !!node.slot && (node.kind === 'slot' || node.kind === 'order') && inst.hiddenSlots.has(node.slot);
+  const inSlot = node.kind === 'attachment' && node.slot === inst.selectedSlot && inst.id === scene.selectedId;
+  item.className = [
+    'outliner-row',
+    `is-${node.kind}`,
+    isSelected || (node.kind === 'order' && inst.id === scene.selectedId && node.slot === inst.selectedSlot) ? 'is-selected' : '',
+    inSlot ? 'is-in-selection' : '',
+    slotHidden ? 'is-object-hidden' : '',
+    node.key === outlinerCursor ? 'is-cursor' : '',
+  ].filter(Boolean).join(' ');
+  item.dataset.key = node.key;
+  item.setAttribute('role', 'treeitem');
+  item.setAttribute('aria-level', String(row.depth + 1));
+  item.setAttribute('aria-selected', String(item.classList.contains('is-selected')));
+  if (node.children.length) item.setAttribute('aria-expanded', String(outlinerRows[row.index + 1]?.path.includes(node.key) ?? false));
+  item.dataset.depth = String(Math.min(row.depth, 4));
+  const rowIndex = row.index;
+  item.dataset.stripe = String(rowIndex % 2);
+  item.style.setProperty('--depth', String(row.depth));
+  // Parent guides: a stem per ancestor below the asset, blue along the selection's path.
+  const selectedPath = outlinerSelectedPath(inst);
+  for (let level = 1; level < row.depth; level++) {
+    const guide = document.createElement('span');
+    // Blue from the ancestor down to the selected row, not past it.
+    const active = selectedPath.has(row.path[level]) && rowIndex <= outlinerPathCache.index;
+    guide.className = `outliner-guide${active ? ' is-active' : ''}`;
+    guide.style.left = `${level * 12 - 1}px`;
+    guide.setAttribute('aria-hidden', 'true');
+    item.appendChild(guide);
+  }
+  outlinerTwisty(item, row);
+  const glyphName = nodeIcon(node);
+  const glyph = document.createElement('span');
+  glyph.className = `outliner-glyph element-${glyphName}`;
+  glyph.innerHTML = icon(glyphName);
+  item.appendChild(glyph);
+
+  if (node.kind === 'skin') {
+    const label = document.createElement('label');
+    label.className = 'skin-item outliner-name';
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.value = node.name;
+    box.checked = inst.skins.has(node.name);
+    box.addEventListener('change', () => {
+      withHistory(() => {
+        inst.previousSkins = new Set(inst.skins);
+        if (box.checked) inst.skins.add(node.name);
+        else inst.skins.delete(node.name);
+        applySkins(inst);
+        inst.spine.update(0);
+        emit();
+      });
+    });
+    const span = document.createElement('span');
+    span.textContent = node.name;
+    label.append(box, span);
+    label.addEventListener('contextmenu', (event) => openOutlinerMenu(event, inst, node));
+    item.appendChild(label);
+    return item;
+  }
+
+  const name = document.createElement('button');
+  name.type = 'button';
+  name.className = 'outliner-name';
+  name.textContent = node.name;
+  name.addEventListener('click', () => activateOutlinerRow(inst, node, { toggle: true }));
+  name.addEventListener('contextmenu', (event) => openOutlinerMenu(event, inst, node));
+  item.appendChild(name);
+  if (node.kind === 'bone' || node.kind === 'slot') {
+    const boneName = node.kind === 'bone' ? node.bone : slotBoneName(inst, /** @type {string} */ (node.slot));
+    item.addEventListener('pointerenter', () => { inst.hoverBone = boneName || null; });
+    item.addEventListener('pointerleave', () => { if (inst.hoverBone === boneName) inst.hoverBone = null; });
+  }
+  if (node.keyed) {
+    const keyed = document.createElement('span');
+    keyed.className = 'outliner-keyed';
+    keyed.dataset.tip = 'Keyed in the playing animation.';
+    keyed.setAttribute('aria-label', 'keyed');
+    item.appendChild(keyed);
+  }
+  if (node.kind === 'attachment' && outlinerAttachment?.key === node.key) item.classList.add('is-selected');
+  if (node.meta) {
+    const meta = document.createElement('span');
+    meta.className = 'outliner-meta';
+    meta.textContent = node.meta;
+    item.appendChild(meta);
+  }
+  if (node.kind === 'slot' || node.kind === 'order') {
+    const slotName = /** @type {string} */ (node.slot);
+    item.appendChild(outlinerCell('eye', slotHidden, slotHidden
+      ? 'Show this slot on the stage (H). Alt-click shows only this slot.'
+      : 'Hide this slot on the stage (H). Alt-click shows only this slot.', (event) => {
+      if (event.altKey) soloSlots(inst, [slotName]);
+      else withHistory(() => {
+        toggleSlotHidden(inst, slotName);
+        emit();
+      });
+    }));
+  }
+  if (node.kind === 'bone') {
+    const branch = slotsUnder(node);
+    if (branch.length) {
+      const allHidden = branch.every((name) => inst.hiddenSlots.has(name));
+      item.appendChild(outlinerCell('eye', allHidden, allHidden
+        ? `Show the ${branch.length} slots of this branch. Alt-click shows only this branch.`
+        : `Hide the ${branch.length} slots of this branch. Alt-click shows only this branch.`, (event) => {
+        if (event.altKey) soloSlots(inst, branch);
+        else setSlotsHidden(inst, branch, !allHidden);
+      }));
+    }
+  }
+  if (node.kind === 'event') {
+    const log = inst.eventLog?.get(node.name);
+    if (log) {
+      const fired = document.createElement('span');
+      fired.className = 'outliner-meta outliner-event-log';
+      fired.textContent = `×${log.count} · ${log.time.toFixed(2)}s`;
+      fired.dataset.tip = `Fired ${log.count} times since the last Setup pose; last at ${log.time.toFixed(2)}s into ${log.animation}.`;
+      item.appendChild(fired);
+    }
+  }
+  if (node.kind === 'attachment') {
+    const slotIndex = inst.spine.skeleton.data.slotIndex?.get(node.slot);
+    const skin = inst.spine.skeleton.data.skins.find((entry) => entry.name === node.skin);
+    const attachment = slotIndex === undefined ? null : skin?.attachments.get(slotIndex)?.get(node.name);
+    if (attachment) outlinerAttachmentRows.push({ el: item, inst, slot: /** @type {string} */ (node.slot), attachment });
+  }
+  return item;
+}
+
+/**
+ * Select what a row stands for: a bone opens the inspector, a slot (or its attachment, or its draw-order row)
+ * highlights on the stage, a group opens or shuts.
+ * @param {import('../app/sceneStore.js').SpineInstance} inst
+ * @param {import('../features/outlinerTree.js').OutlinerNode} node
+ * @param {{ toggle?: boolean }} [options]
+ */
+function activateOutlinerRow(inst, node, { toggle = false } = {}) {
+  focusedPanel = 'scene-panel';
+  outlinerCursor = node.key;
+  outlinerAttachment = node.kind === 'attachment'
+    ? { key: node.key, instId: inst.id, slot: /** @type {string} */ (node.slot), skin: /** @type {string} */ (node.skin), name: node.name }
+    : null;
+  if (node.kind === 'group') {
+    if (toggle) toggleOutlinerBranch(node);
+    else renderSceneList();
+    return;
+  }
+  // A clicked bone or slot opens to show what is inside; its arrow shuts it again.
+  if (toggle && node.children.length) setOutlinerOpen(node.key, true);
+  if (node.kind !== 'bone' && !node.slot) {
+    renderSceneList();
+    return;
+  }
+  if (scene.selectedId !== inst.id || scene.selectedIds.size !== 1) {
+    scene.selectedId = inst.id;
+    scene.selectedIds = new Set([inst.id]);
+  }
+  if (node.kind === 'bone') {
+    const next = toggle && inst.selectedBone === node.bone && !inst.selectedSlot ? null : /** @type {string} */ (node.bone);
+    inst.selectedBone = next;
+    if (inst.selectedSlot) setSelectedSlot(inst, null);
+  } else {
+    const slotName = /** @type {string} */ (node.slot);
+    const next = toggle && node.kind === 'slot' && inst.selectedSlot === slotName ? null : slotName;
+    setSelectedSlot(inst, next);
+    // The slot's bone feeds the inspector, so its world transform shows next to the highlight.
+    inst.selectedBone = next ? slotBoneName(inst, next) : null;
+  }
+  // Clicked rows are already in view; only stage picks and arrow keys need revealing.
+  outlinerRevealed.set(inst.id, outlinerSelectionKey() || '');
+  emit();
+}
+
+/** Keys from the asset down to the selected row, and that row's index, for the blue guides. @type {{ key: string | null, keys: Set<string>, index: number }} */
+let outlinerPathCache = { key: null, keys: new Set(), index: -1 };
+
+/** @param {import('../app/sceneStore.js').SpineInstance} inst */
+function outlinerSelectedPath(inst) {
+  const key = inst.id === scene.selectedId ? outlinerSelectionKey() : null;
+  if (!key) return new Set();
+  if (outlinerPathCache.key !== key) {
+    const index = outlinerRows.findIndex((item) => item.node.key === key);
+    const row = outlinerRows[index];
+    outlinerPathCache = { key, keys: new Set(row ? [...row.path, key] : []), index };
+  }
+  return outlinerPathCache.keys;
+}
+
+/** Slot names in a branch of the tree. @param {import('../features/outlinerTree.js').OutlinerNode} node @returns {string[]} */
+function slotsUnder(node) {
+  /** @type {string[]} */
+  const names = [];
+  /** @param {import('../features/outlinerTree.js').OutlinerNode} item */
+  const walk = (item) => {
+    if (item.kind === 'slot' && item.slot) names.push(item.slot);
+    for (const child of item.children) walk(child);
+  };
+  walk(node);
+  return names;
+}
+
+/**
+ * @param {import('../app/sceneStore.js').SpineInstance} inst
+ * @param {string[]} names
+ * @param {boolean} hidden
+ */
+function setSlotsHidden(inst, names, hidden) {
+  withHistory(() => {
+    for (const name of names) {
+      if (hidden) inst.hiddenSlots.add(name);
+      else inst.hiddenSlots.delete(name);
+    }
+    applySlotVisibility(inst);
+    emit();
+  });
+}
+
+/**
+ * Show only these slots; when they already are the only ones shown, show everything again.
+ * @param {import('../app/sceneStore.js').SpineInstance} inst
+ * @param {string[]} names
+ */
+function soloSlots(inst, names) {
+  const keep = new Set(names);
+  const all = inst.spine?.skeleton?.data?.slots?.map((slot) => slot.name) || [];
+  const soloed = all.every((name) => keep.has(name) ? !inst.hiddenSlots.has(name) : inst.hiddenSlots.has(name));
+  withHistory(() => {
+    inst.hiddenSlots = soloed ? new Set() : new Set(all.filter((name) => !keep.has(name)));
+    applySlotVisibility(inst);
+    emit();
+  });
+}
+
+/** @param {import('../app/sceneStore.js').SpineInstance} inst @param {string} slotName */
+function slotBoneName(inst, slotName) {
+  return inst.spine.skeleton.findSlot(slotName)?.bone?.data?.name || null;
+}
+
+/**
+ * A fixed cell at the row's right edge (eye or lock), like Studio's metadata columns.
+ * @param {'eye' | 'lock'} kind
+ * @param {boolean} on hidden / locked
+ * @param {string} tip
+ * @param {(event: MouseEvent) => void} run
+ */
+function outlinerCell(kind, on, tip, run) {
+  // run receives the click, so Alt can solo.
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `outliner-cell outliner-${kind}${on ? ' is-on' : ''}`;
+  button.innerHTML = kind === 'eye' ? icon(on ? 'eyeOff' : 'eye') : icon(on ? 'lock' : 'unlock');
+  button.setAttribute('aria-label', tip);
+  button.setAttribute('aria-pressed', String(on));
+  button.dataset.tip = tip;
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    run(event);
+  });
+  return button;
+}
+
+/** Attachment row clicked last, for its details panel. @type {{ key: string, instId: string, slot: string, skin: string, name: string } | null} */
+let outlinerAttachment = null;
+
+/** Type, size and source of the clicked attachment, under the tree. */
+function renderAttachmentInspector() {
+  const panel = document.getElementById('attachment-inspector');
+  if (!panel) return;
+  const pick = outlinerAttachment;
+  const inst = pick ? scene.instances.find((item) => item.id === pick.instId) : null;
+  const data = inst?.spine?.skeleton?.data;
+  const slotIndex = pick ? data?.slotIndex?.get(pick.slot) : undefined;
+  const attachment = pick && slotIndex !== undefined
+    ? data.skins.find((skin) => skin.name === pick.skin)?.attachments.get(slotIndex)?.get(pick.name)
+    : null;
+  panel.classList.toggle('is-hidden', !attachment);
+  if (!attachment || !pick) return;
+  setText('ai-name', pick.name);
+  /** @type {[string, string][]} */
+  const rows = [['Type', attachment.type], ['Slot', pick.slot], ['Skin', pick.skin]];
+  if (attachment.path && attachment.path !== pick.name) rows.push(['Region', attachment.path]);
+  if (attachment.width) rows.push(['Size', `${Math.round(attachment.width)} × ${Math.round(attachment.height)}`]);
+  if (attachment.type === 'region') {
+    rows.push(['Offset', `${attachment.x.toFixed(1)}, ${attachment.y.toFixed(1)}`]);
+    if (attachment.rotation) rows.push(['Rotation', `${attachment.rotation.toFixed(1)}°`]);
+  }
+  if (attachment.worldVerticesLength) rows.push(['Vertices', String(attachment.worldVerticesLength / 2)]);
+  if (attachment.triangles) rows.push(['Triangles', String(attachment.triangles.length / 3)]);
+  if (attachment.vertices && attachment.bones !== undefined) rows.push(['Weighted', attachment.bones ? 'yes' : 'no']);
+  if (attachment.sequence) rows.push(['Sequence', `${attachment.sequence.count ?? '?'} frames`]);
+  drawAttachmentThumb(inst, attachment);
+  const grid = document.getElementById('ai-grid');
+  if (!grid) return;
+  grid.replaceChildren();
+  for (const [label, value] of rows) {
+    const term = document.createElement('dt');
+    term.textContent = label;
+    const desc = document.createElement('dd');
+    desc.textContent = value;
+    desc.title = value;
+    grid.append(term, desc);
   }
 }
+
+/** @param {import('../app/sceneStore.js').SpineInstance | null} inst */
+function renderBoneInspector(inst) {
+  const inspector = document.getElementById('bone-inspector');
+  if (!inspector) return;
+  const boneName = inst?.selectedBone || null;
+  inspector.classList.toggle('is-hidden', !boneName);
+  setText('bi-name', boneName || '');
+}
+
+/** Mark the attachment each listed slot is showing right now (animations swap them). */
+function refreshOutlinerAttachments() {
+  for (const row of outlinerAttachmentRows) {
+    const slot = row.inst.spine?.skeleton?.findSlot(row.slot);
+    row.el.classList.toggle('is-current', !!slot && slot.attachment === row.attachment);
+  }
+}
+
+/** @type {WeakSet<object>} */
+const eventLogHooked = new WeakSet();
+
+/**
+ * Count fired events per asset for the Events branch (×count · last time); Setup pose clears it.
+ * @param {import('../app/sceneStore.js').SpineInstance} inst
+ */
+function hookEventLog(inst) {
+  const state = inst.spine?.state;
+  if (!state || eventLogHooked.has(state)) return;
+  eventLogHooked.add(state);
+  state.addListener({
+    event: (entry, event) => {
+      if (scene.scrubbing) return;
+      inst.eventLog ??= new Map();
+      const name = event?.data?.name ?? event?.name;
+      if (!name) return;
+      const log = inst.eventLog.get(name) || { count: 0, time: 0, animation: '' };
+      log.count += 1;
+      log.time = Number(event.time ?? poseTime(entry)) || 0;
+      log.animation = entry?.animation?.name || '';
+      inst.eventLog.set(name, log);
+      if (outlinerOpen.get(`${inst.id}|g:events`)) scheduleSceneList();
+    },
+  });
+}
+
+const THUMB_SIZE = 64;
+
+/**
+ * Draw the attachment's atlas region into the panel thumbnail; compressed pages (KTX2) cannot be read back.
+ * @param {import('../app/sceneStore.js').SpineInstance | null | undefined} inst
+ * @param {any} attachment
+ */
+function drawAttachmentThumb(inst, attachment) {
+  const canvas = /** @type {HTMLCanvasElement | null} */ (document.getElementById('ai-thumb'));
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = THUMB_SIZE * ratio;
+  canvas.height = THUMB_SIZE * ratio;
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, THUMB_SIZE, THUMB_SIZE);
+  const regions = inst?.atlas?.data?.regions;
+  const path = attachment?.path || attachment?.name;
+  const region = regions?.get?.(path) || regions?.get?.(`${path}${attachment?.sequence ? '_0' : ''}`);
+  const source = region ? inst?.atlas?.textures?.get?.(region.page.name)?.resource?.source : null;
+  const drawable = source && (source instanceof HTMLImageElement || source instanceof HTMLCanvasElement
+    || (typeof ImageBitmap !== 'undefined' && source instanceof ImageBitmap));
+  canvas.classList.toggle('is-empty', !drawable);
+  canvas.title = drawable ? `${region.name} (${region.width} × ${region.height})` : 'No preview (missing region or compressed page)';
+  if (!drawable) return;
+  // A region packed at 90° sits sideways in the page: its page footprint swaps width and height.
+  const sideways = region.degrees === 90 || region.degrees === 270;
+  const pageW = sideways ? region.height : region.width;
+  const pageH = sideways ? region.width : region.height;
+  const scale = Math.min((THUMB_SIZE - 4) / region.width, (THUMB_SIZE - 4) / region.height, 4);
+  ctx.save();
+  ctx.translate(THUMB_SIZE / 2, THUMB_SIZE / 2);
+  if (sideways) ctx.rotate(region.degrees === 90 ? -Math.PI / 2 : Math.PI / 2);
+  ctx.drawImage(source, region.x, region.y, pageW, pageH, (-pageW * scale) / 2, (-pageH * scale) / 2, pageW * scale, pageH * scale);
+  ctx.restore();
+}
+
+/**
+ * Flip the asset between its current skins and the ones before the last change (S), to spot what a skin adds.
+ * @param {import('../app/sceneStore.js').SpineInstance} inst
+ */
+function flipSkins(inst) {
+  if (!inst.previousSkins) return false;
+  const before = inst.previousSkins;
+  inst.previousSkins = new Set(inst.skins);
+  inst.skins = new Set(before);
+  applySkins(inst);
+  inst.spine.update(0);
+  emit();
+  return true;
+}
+
+/** @type {HTMLElement | null} */
+let outlinerMenu = null;
+
+function closeOutlinerMenu() {
+  outlinerMenu?.remove();
+  outlinerMenu = null;
+}
+
+/**
+ * Right-click menu on outliner rows: copy, hide, solo, and jumps between a slot, its bone and its draw-order row.
+ * @param {MouseEvent} event
+ * @param {import('../app/sceneStore.js').SpineInstance} inst
+ * @param {import('../features/outlinerTree.js').OutlinerNode} node
+ */
+function openOutlinerMenu(event, inst, node) {
+  event.preventDefault();
+  closeOutlinerMenu();
+  /** @type {([string, () => void] | null)[]} */
+  const items = [[`Copy “${node.kind === 'asset' ? inst.name : node.name}”`, () => { void navigator.clipboard?.writeText(node.kind === 'asset' ? inst.name : node.name); }]];
+  /** @param {string} key */
+  const reveal = (key) => {
+    const tree = outlinerTreeCache.get(inst.id)?.tree;
+    const path = tree ? pathTo(tree, (item) => item.key === key) : null;
+    for (const branch of path || []) setOutlinerOpen(branch, true);
+    outlinerCursor = key;
+    outlinerScrollPending = true;
+    renderSceneList();
+  };
+  if (node.kind === 'asset') {
+    items.push(
+      ['Rename…', () => rename(inst)],
+      null,
+      [inst.visible ? 'Hide' : 'Show', () => withHistory(() => toggleVisible(inst))],
+      [inst.locked ? 'Unlock' : 'Lock', () => withHistory(() => toggleLocked(inst))],
+      ['Show all slots', () => setSlotsHidden(inst, [...inst.hiddenSlots], false)],
+      null,
+      ['Copy asset', () => { selectInstance(inst.id); duplicateSceneSelection(); }],
+      ['Delete', () => { selectInstance(inst.id); deleteSceneSelection(); }],
+    );
+  }
+  const slot = node.kind === 'slot' || node.kind === 'order' || node.kind === 'attachment' ? node.slot : null;
+  if (slot) {
+    const hidden = inst.hiddenSlots.has(slot);
+    items.push(
+      null,
+      [hidden ? 'Show slot' : 'Hide slot', () => setSlotsHidden(inst, [slot], !hidden)],
+      ['Show only this slot', () => soloSlots(inst, [slot])],
+      null,
+      ['Go to slot', () => { activateOutlinerRow(inst, { key: `${inst.id}|s:${slot}`, kind: 'slot', name: slot, slot, children: [] }); reveal(`${inst.id}|s:${slot}`); }],
+      ['Go to its bone', () => {
+        const bone = slotBoneName(inst, slot);
+        if (bone) reveal(`${inst.id}|b:${bone}`);
+      }],
+      ['Show in draw order', () => reveal(`${inst.id}|o:${slot}`)],
+    );
+  }
+  if (node.kind === 'bone') {
+    const branch = slotsUnder(node);
+    if (branch.length) {
+      items.push(
+        null,
+        ['Hide branch', () => setSlotsHidden(inst, branch, true)],
+        ['Show branch', () => setSlotsHidden(inst, branch, false)],
+        ['Show only this branch', () => soloSlots(inst, branch)],
+      );
+    }
+  }
+  if (node.children.length) {
+    items.push(null, ['Expand all below', () => {
+      setOutlinerOpen(node.key, false);
+      toggleOutlinerBranch(node, true);
+    }]);
+  }
+  const menu = document.createElement('div');
+  menu.className = 'outliner-menu';
+  menu.setAttribute('role', 'menu');
+  for (const entry of items) {
+    if (!entry) {
+      if (menu.lastElementChild && !menu.lastElementChild.classList.contains('outliner-menu-sep')) {
+        const sep = document.createElement('div');
+        sep.className = 'outliner-menu-sep';
+        menu.appendChild(sep);
+      }
+      continue;
+    }
+    const [label, run] = entry;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.setAttribute('role', 'menuitem');
+    button.textContent = label;
+    button.addEventListener('click', () => {
+      closeOutlinerMenu();
+      run();
+    });
+    menu.appendChild(button);
+  }
+  if (menu.lastElementChild?.classList.contains('outliner-menu-sep')) menu.lastElementChild.remove();
+  document.body.appendChild(menu);
+  const { innerWidth, innerHeight } = window;
+  const rect = menu.getBoundingClientRect();
+  menu.style.left = `${Math.min(event.clientX, innerWidth - rect.width - 4)}px`;
+  menu.style.top = `${Math.min(event.clientY, innerHeight - rect.height - 4)}px`;
+  outlinerMenu = menu;
+  /** @type {HTMLButtonElement | null} */ (menu.querySelector('button'))?.focus();
+  menu.addEventListener('keydown', (key) => {
+    if (key.key === 'Escape') {
+      key.stopPropagation();
+      closeOutlinerMenu();
+    } else if (key.key === 'ArrowDown' || key.key === 'ArrowUp') {
+      key.preventDefault();
+      key.stopPropagation();
+      const buttons = [...menu.querySelectorAll('button')];
+      const at = buttons.indexOf(/** @type {HTMLButtonElement} */ (document.activeElement));
+      buttons[(at + (key.key === 'ArrowDown' ? 1 : buttons.length - 1)) % buttons.length]?.focus();
+    }
+  });
+}
+
+window.addEventListener('pointerdown', (event) => {
+  if (outlinerMenu && !(event.target instanceof Node && outlinerMenu.contains(event.target))) closeOutlinerMenu();
+}, true);
+window.addEventListener('blur', closeOutlinerMenu);
 
 const macShortcuts = /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -772,20 +1782,6 @@ const macShortcuts = /Mac|iPhone|iPad/.test(navigator.platform);
 function shortcutLabel(key, shift = false) {
   if (macShortcuts) return `⌘${shift ? '⇧' : ''}${key}`;
   return `Ctrl+${shift ? 'Shift+' : ''}${key}`;
-}
-
-/** @param {string} label @param {() => void} run @param {string} [className] @param {string} [tip] */
-function sceneAction(label, run, className = '', tip = '') {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = className;
-  button.textContent = label;
-  if (tip) button.dataset.tip = tip;
-  button.addEventListener('click', (event) => {
-    event.stopPropagation();
-    run();
-  });
-  return button;
 }
 
 /** @param {import('../app/sceneStore.js').SpineInstance} inst */
@@ -801,12 +1797,24 @@ function toggleLocked(inst) {
   emit();
 }
 
-function sceneSep() {
-  const sep = document.createElement('span');
-  sep.className = 'scene-sep';
-  sep.textContent = '|';
-  sep.setAttribute('aria-hidden', 'true');
-  return sep;
+/**
+ * Copy / Delete on the asset row, in the same line as eye and lock; shown on hover and on the selected asset.
+ * @param {'copy' | 'trash'} glyph
+ * @param {string} tip
+ * @param {() => void} run
+ */
+function assetAction(glyph, tip, run) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `outliner-cell outliner-action outliner-${glyph}`;
+  button.innerHTML = icon(glyph);
+  button.setAttribute('aria-label', tip);
+  button.dataset.tip = tip;
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    run();
+  });
+  return button;
 }
 
 /** @param {(inst: import('../app/sceneStore.js').SpineInstance) => void} fn */
@@ -831,41 +1839,18 @@ function deleteSceneSelection() {
   });
 }
 
-function playTransport() {
-  const picks = selectedInstances();
-  const scoped = picks.length > 0;
-  const targets = scoped ? picks : scene.instances;
-  let anyPlaying = false;
-  for (const inst of targets) {
-    if (!scoped && inst.stageAnimations === false) {
-      inst.playing = false;
-      continue;
-    }
-    if (inst.holdSetup && inst.lastAnimationName) {
-      setTrack(inst, 0, inst.lastAnimationName);
-      anyPlaying = true;
-      continue;
-    }
-    const track = inst.selectedTrack || 0;
-    const name = inst.tracks[track];
-    if (name) {
-      setTrack(inst, track, name);
-      anyPlaying = true;
-    } else if (inst.stageAnimations !== false) {
-      inst.playing = true;
-      anyPlaying = true;
-    }
-  }
-  scene.playing = anyPlaying;
-  emit();
-}
-
-function pauseTransport() {
-  const picks = selectedInstances();
-  scene.playing = false;
-  const targets = picks.length ? picks : scene.instances;
-  for (const inst of targets) inst.playing = false;
-  emit();
+/**
+ * Animations Play starts on an asset, by track: the ones picked in the animations drawer, else the ones it had
+ * before Setup pose, else its last animation, else its first.
+ * @param {import('../app/sceneStore.js').SpineInstance} inst
+ * @returns {Record<number, string>}
+ */
+function transportPlan(inst) {
+  if (Object.keys(inst.tracks).length) return { ...inst.tracks };
+  if (inst.savedTracks && Object.keys(inst.savedTracks).length) return { ...inst.savedTracks };
+  const first = inst.spine?.skeleton?.data?.animations?.[0]?.name;
+  const name = inst.lastAnimationName || first;
+  return name ? { 0: name } : {};
 }
 
 function transformTargets() {
@@ -908,17 +1893,20 @@ function renderTransformActionButtons() {
     'Center {n} selected instances in the screen frame.',
   );
   apply(
-    'btn-transform-stop-all',
-    'Clear animations on every instance and return to setup pose.',
-    'Clear animations on the selected instance and return to setup pose.',
-    'Clear animations on {n} selected instances and return to setup pose.',
+    'btn-setup',
+    'Stop every skeleton and show its setup pose. Play in Animations starts it again.',
+    'Stop the selected skeleton and show its setup pose.',
+    'Stop {n} selected skeletons and show their setup pose.',
   );
   apply(
     'btn-transform-reset-all',
-    'Return every instance to how it was when added or loaded.',
-    'Return this asset to how it was when added or loaded.',
-    'Return {n} selected assets to how they were when added or loaded.',
+    'Revert every skeleton to how it was when opened: position, scale, skins, tracks.',
+    'Revert the selected skeleton to how it was when opened: position, scale, skins, tracks.',
+    'Revert {n} selected skeletons to how they were when opened.',
   );
+  const empty = document.getElementById('transform-empty');
+  if (empty) empty.hidden = !!scene.instances.length;
+  document.getElementById('transform-all-panel')?.classList.toggle('is-empty', !scene.instances.length);
 }
 
 function fitTransformScope() {
@@ -933,24 +1921,10 @@ function centerTransformScope() {
   withHistory(() => centerInstances(targets));
 }
 
-function stopTransformScope() {
-  const targets = transformTargets();
-  if (!targets.length) return;
-  withHistory(() => stopInstances(targets));
-}
-
 function resetAssetsToBaseline() {
   const targets = transformTargets();
   if (!targets.length) return;
   withHistory(() => resetInstancesToBaseline(targets));
-}
-
-/** @param {import('../app/sceneStore.js').SpineInstance} inst */
-function toggleStageAnimations(inst) {
-  inst.stageAnimations = inst.stageAnimations === false;
-  if (!inst.stageAnimations) inst.playing = false;
-  else if (scene.playing) inst.playing = true;
-  emit();
 }
 
 /** @param {import('../app/sceneStore.js').SpineInstance} inst */
@@ -962,81 +1936,6 @@ function rename(inst) {
       emit();
     });
   }
-}
-
-/** @param {import('../app/sceneStore.js').SpineInstance | null} inst */
-function renderSlots(inst) {
-  const title = document.getElementById('slots-title');
-  const list = document.getElementById('slots-list');
-  const pulse = document.getElementById('btn-pulse-toggle');
-  const mask = document.getElementById('btn-mask-color');
-  if (!title || !list) return;
-  const names = inst?.spine?.skeleton?.data?.slots?.map((slot) => slot.name) || [];
-  const visibleNames = names.filter((name) => matchesFilter(name, panelFilters.slots));
-  title.textContent = `Slots (${names.length})`;
-  pulse?.classList.toggle('is-active', !!inst?.pulse);
-  if (mask && inst) {
-    mask.dataset.mask = MASK_COLORS[inst.maskColorIndex].attr;
-  }
-  list.replaceChildren();
-  if (names.length && !visibleNames.length) {
-    const empty = document.createElement('li');
-    empty.className = 'panel-empty';
-    empty.textContent = 'No matches';
-    list.appendChild(empty);
-  }
-  for (const name of visibleNames) {
-    const item = document.createElement('li');
-    const slotHidden = !!inst?.hiddenSlots.has(name);
-    item.className = `slot-row${slotHidden ? ' is-slot-hidden' : ''}`;
-    const nameBtn = document.createElement('button');
-    nameBtn.type = 'button';
-    nameBtn.className = 'slot-name';
-    nameBtn.textContent = name;
-    nameBtn.dataset.slotName = name;
-    nameBtn.classList.toggle('is-selected', name === inst?.selectedSlot);
-    nameBtn.addEventListener('click', () => {
-      if (!inst) return;
-      const next = inst.selectedSlot === name ? null : name;
-      setSelectedSlot(inst, next);
-      emit();
-    });
-    nameBtn.addEventListener('contextmenu', (event) => copyText(event, nameBtn, name));
-    const eye = document.createElement('button');
-    eye.type = 'button';
-    eye.className = 'slot-eye';
-    eye.innerHTML = SLOT_EYE_MARKUP;
-    eye.setAttribute('aria-label', slotHidden ? `Show slot ${name}` : `Hide slot ${name}`);
-    eye.dataset.tip = slotHidden
-      ? `Show this slot on the stage. Press H while Slots is focused.`
-      : `Hide this slot on the stage. Press H while Slots is focused.`;
-    eye.addEventListener('click', (event) => {
-      event.stopPropagation();
-      if (!inst) return;
-      withHistory(() => {
-        toggleSlotHidden(inst, name);
-        emit();
-      });
-    });
-    item.append(nameBtn, eye);
-    list.appendChild(item);
-  }
-}
-
-function transportIsPlaying() {
-  const picks = selectedInstances();
-  if (picks.length) {
-    return picks.some((item) => {
-      if (!item.playing) return false;
-      const track = item.selectedTrack || 0;
-      return !!currentTrackEntry(item.spine?.state, track)?.animation;
-    });
-  }
-  return resolveTransportIsPlaying({
-    scenePlaying: scene.playing,
-    selectedInstance: null,
-    instances: scene.instances,
-  });
 }
 
 /** @returns {import('../app/sceneStore.js').SpineInstance | null} */
@@ -1051,46 +1950,6 @@ function transportInstance() {
 /** @returns {import('../app/sceneStore.js').SpineInstance | null} */
 function animControlInstance() {
   return selected() || transportInstance() || scene.instances[0] || null;
-}
-
-/** @param {import('../app/sceneStore.js').SpineInstance | null} inst */
-function renderSkins(inst) {
-  const title = document.getElementById('skins-title');
-  const list = document.getElementById('skins-list');
-  if (!title || !list) return;
-  const skins = inst?.spine?.skeleton?.data?.skins || [];
-  title.textContent = `Skins (${skins.length})`;
-  list.replaceChildren();
-  const visible = skins.filter((skin) => matchesFilter(skin.name, panelFilters.skins));
-  if (skins.length && !visible.length) {
-    const empty = document.createElement('div');
-    empty.className = 'panel-empty';
-    empty.textContent = 'No matches';
-    list.appendChild(empty);
-  }
-  for (const skin of visible) {
-    const label = document.createElement('label');
-    label.className = 'skin-item';
-    const box = document.createElement('input');
-    box.type = 'checkbox';
-    box.value = skin.name;
-    box.checked = !!inst?.skins.has(skin.name);
-    box.addEventListener('change', () => {
-      if (!inst) return;
-      withHistory(() => {
-        if (box.checked) inst.skins.add(skin.name);
-        else inst.skins.delete(skin.name);
-        applySkins(inst);
-        inst.spine.update(0);
-        emit();
-      });
-    });
-    const span = document.createElement('span');
-    span.textContent = skin.name;
-    label.append(box, span);
-    label.addEventListener('contextmenu', (event) => copyText(event, span, skin.name));
-    list.appendChild(label);
-  }
 }
 
 /** @param {import('../app/sceneStore.js').SpineInstance | null} inst */
@@ -1165,7 +2024,6 @@ function renderAnimations(inst) {
     button.addEventListener('contextmenu', (event) => copyText(event, name, anim.name));
     list.appendChild(button);
   }
-  renderStageAnimations(inst);
   syncAnimControls(inst);
 }
 
@@ -1252,6 +2110,9 @@ function bindTimelineToolbar() {
     if (!inst) return;
     if (inst.playing) {
       inst.playing = false;
+    } else if (!Object.keys(inst.tracks).length) {
+      // Setup pose cleared the tracks: start what Play would.
+      for (const [track, name] of Object.entries(transportPlan(inst))) setTrack(inst, Number(track), name);
     } else {
       inst.holdSetup = false;
       // Once that already reached its end plays again from the start.
@@ -1302,6 +2163,9 @@ function syncTimelineToolbar() {
     const button = /** @type {HTMLButtonElement | null} */ (document.getElementById(id));
     if (button) button.disabled = !ready;
   }
+  // After Setup pose there is no animation on the track, but ▶ can still start what Play would.
+  const playButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('tl-play'));
+  if (playButton && !ready && inst && !Object.keys(inst.tracks).length) playButton.disabled = !Object.keys(transportPlan(inst)).length;
   const play = document.getElementById('tl-play');
   if (play) {
     const playing = ready && !!inst?.playing;
@@ -1376,11 +2240,9 @@ function bindStageBackground() {
 function bindAnimControls() {
   const speed = /** @type {HTMLInputElement | null} */ (document.getElementById('anim-speed'));
   const mode = /** @type {HTMLSelectElement | null} */ (document.getElementById('anim-mode'));
-  const applyGlobal = /** @type {HTMLInputElement | null} */ (document.getElementById('anim-apply-global'));
-  if (applyGlobal) {
-    applyGlobal.checked = !!ui.animApplyGlobal;
-    applyGlobal.addEventListener('change', () => {
-      ui.animApplyGlobal = applyGlobal.checked;
+  document.querySelectorAll('[data-anim-scope]').forEach((button) => {
+    button.addEventListener('click', () => {
+      ui.animApplyGlobal = /** @type {HTMLElement} */ (button).dataset.animScope === 'all';
       persistUi();
       const source = selected() || scene.instances[0];
       if (ui.animApplyGlobal && source) {
@@ -1394,7 +2256,7 @@ function bindAnimControls() {
       }
       syncAnimControls(selected());
     });
-  }
+  });
   speed?.addEventListener('input', () => {
     const value = Number(speed.value) / 100;
     setPlaybackSpeed(value);
@@ -1445,6 +2307,11 @@ function syncAnimControls(inst) {
   const disabled = !display;
   if (speed) speed.disabled = disabled;
   if (loop) loop.disabled = disabled;
+  document.querySelectorAll('[data-anim-scope]').forEach((button) => {
+    const on = (/** @type {HTMLElement} */ (button).dataset.animScope === 'all') === !!ui.animApplyGlobal;
+    button.classList.toggle('is-active', on);
+    button.setAttribute('aria-pressed', String(on));
+  });
   if (!display) {
     setText('anim-speed-value', '1.0×');
     if (loop && document.activeElement !== loop) loop.value = 'loop';
@@ -1456,11 +2323,6 @@ function syncAnimControls(inst) {
   setText('anim-speed-value', `${speedValue.toFixed(1)}×`);
   if (loop && document.activeElement !== loop) loop.value = trackModeOf(display, track);
   syncTimelineToolbar();
-  const play = document.getElementById('btn-play');
-  const pause = document.getElementById('btn-pause');
-  const playing = transportIsPlaying();
-  if (play) play.hidden = playing;
-  if (pause) pause.hidden = !playing;
 }
 
 /**
@@ -1477,69 +2339,22 @@ function seekSelectedTrack(inst, ratio) {
   refreshTime();
 }
 
-function renderStageAnimations(inst) {
-  const stage = document.getElementById('stage-animations');
-  if (!stage) return;
-  const off = !!inst && inst.stageAnimations === false;
-  stage.dataset.tip = `Global stage Play skips this skeleton while this is off. Choosing an animation above still plays it. ${shortcutLabel('A', true)}`;
-  stage.disabled = !inst;
-  stage.classList.toggle('is-off', off);
-  const name = stage.querySelector('.anim-item-name');
-  if (name) name.textContent = off ? 'Global animations off' : 'Global animations on';
-  const mark = stage.querySelector('.stage-global-mark');
-  if (mark) {
-    mark.innerHTML = STAGE_GLOBAL_MARKUP;
-    mark.classList.toggle('is-off', off);
-  }
-}
+/** Draw order last drawn per open Draw order branch. @type {Map<string, string>} */
+const drawOrderSeen = new Map();
 
-/** @param {import('../app/sceneStore.js').SpineInstance | null} inst */
-function renderBones(inst) {
-  const title = document.getElementById('bones-title-text');
-  const list = document.getElementById('bones-list');
-  const inspector = document.getElementById('bone-inspector');
-  if (!title || !list || !inspector) return;
-  const bones = inst?.spine?.skeleton?.data?.bones || [];
-  title.textContent = `Bones (${bones.length})`;
-  list.replaceChildren();
-  const visibleBones = bones.filter((bone) => matchesFilter(bone.name, panelFilters.bones));
-  if (bones.length && !visibleBones.length) {
-    const empty = document.createElement('li');
-    empty.className = 'panel-empty';
-    empty.textContent = 'No matches';
-    list.appendChild(empty);
+/** Redraw the tree when an open Draw order branch changed order (draw-order keys during playback). */
+function refreshOutlinerDrawOrder() {
+  let changed = false;
+  for (const inst of scene.instances) {
+    const key = `${inst.id}|g:order`;
+    if (!outlinerOpen.get(key)) continue;
+    const order = (inst.spine?.skeleton?.drawOrder || []).map((slot) => slot.data.name).join('\n');
+    if (drawOrderSeen.get(key) !== order) {
+      drawOrderSeen.set(key, order);
+      changed = true;
+    }
   }
-  for (const bone of visibleBones) {
-    const item = document.createElement('li');
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.dataset.boneName = bone.name;
-    const depth = boneDepth(bone);
-    const indent = '\u00a0\u00a0'.repeat(depth);
-    const prefix = depth > 0 ? '\u2514\u00a0' : '';
-    button.textContent = indent + prefix + bone.name;
-    button.classList.toggle('is-selected', bone.name === inst?.selectedBone);
-    button.addEventListener('click', () => {
-      if (!inst) return;
-      inst.selectedBone = inst.selectedBone === bone.name ? null : bone.name;
-      emit();
-    });
-    button.addEventListener('contextmenu', (event) => copyText(event, button, bone.name));
-    item.appendChild(button);
-    list.appendChild(item);
-  }
-  inspector.classList.toggle('is-hidden', !inst?.selectedBone);
-}
-
-/** @param {{ parent?: { name?: string } | null, name: string }} bone */
-function boneDepth(bone) {
-  let depth = 0;
-  let parent = bone.parent;
-  while (parent) {
-    depth += 1;
-    parent = parent.parent;
-  }
-  return depth;
+  if (changed) renderSceneList();
 }
 
 function refreshLive() {
@@ -1549,6 +2364,8 @@ function refreshLive() {
   if (timeline && selectionCount() <= 1) refreshTimeline(timeline, inst);
   syncAnimControls(inst);
   refreshBone(inst);
+  refreshOutlinerAttachments();
+  refreshOutlinerDrawOrder();
   refreshPerf();
   refreshDimensions(inst);
 }
@@ -1598,17 +2415,37 @@ function refreshBone(inst) {
 }
 
 const FPS_WINDOW_MS = 10000;
-/** @type {{ t: number, fps: number }[]} */
+/** Heavier perf numbers (exact draw counts, atlas, per-skeleton list) refresh at this interval, not every frame. */
+const PERF_DETAIL_MS = 250;
+/** Per-frame samples over the last {@link FPS_WINDOW_MS}: frame interval and the renderer's counts. */
+/** @type {{ t: number, fps: number, ms: number, dc: number, verts: number, tris: number, stutter?: boolean }[]} */
 const fpsSamples = [];
 /** @type {{ key: string, primary: string, secondary: string, pages: string } | null} */
 let atlasHudCache = null;
+let perfDetailAt = 0;
+let perfUnitsBound = false;
 
+/** Common display refresh rates; the measured one snaps to the nearest. */
+const REFRESH_RATES = [30, 60, 75, 90, 100, 120, 144, 165, 240];
+
+/**
+ * Display refresh rate estimated from the fastest frames (browsers expose no API for it):
+ * the 10th-percentile frame interval, snapped to a common rate.
+ */
 function displayRefreshHz() {
-  const hz = Number(typeof window !== 'undefined' && window.screen && 'refreshRate' in window.screen
-    ? window.screen.refreshRate
-    : 0);
-  return hz >= 30 && hz <= 360 ? hz : 120;
+  if (fpsSamples.length < 30) return 60;
+  // Sorting the whole window is too much for every frame; the rate barely moves, so re-estimate at most once a second.
+  const now = performance.now();
+  if (now - refreshHzAt < 1000) return refreshHz;
+  refreshHzAt = now;
+  const sorted = fpsSamples.map((s) => s.ms).filter((ms) => ms > 0).sort((a, b) => a - b);
+  const fast = sorted[Math.floor(sorted.length * 0.1)] || 16.7;
+  const hz = 1000 / fast;
+  refreshHz = REFRESH_RATES.reduce((best, r) => (Math.abs(r - hz) < Math.abs(best - hz) ? r : best), 60);
+  return refreshHz;
 }
+let refreshHz = 60;
+let refreshHzAt = -Infinity;
 
 function fpsGraphCeiling() {
   let peak = displayRefreshHz();
@@ -1624,10 +2461,25 @@ function atlasHudKey(scopeAll, selectedInst) {
   return `${scopeAll ? 'all' : 'sel'}:${selectedInst?.id || ''}:${ids}`;
 }
 
-/** @param {number} fps */
-function recordFps(fps) {
+/** @param {ReturnType<typeof readFrameStats>} frame */
+function recordFrame(frame) {
   const now = performance.now();
-  fpsSamples.push({ t: now, fps });
+  const ms = frame.deltaMs;
+  const r = frame.renderer;
+  const stutter = trackStutter(frame, displayRefreshHz(), playingContext());
+  fpsSamples.push({ t: now, fps: ms > 0 ? 1000 / ms : 0, ms, dc: r?.drawCalls ?? 0, verts: r?.vertices ?? 0, tris: r?.triangles ?? 0, stutter: !!stutter });
+  const heap = readJsHeap();
+  recordPerfFrame({
+    frameMs: ms,
+    updateMs: frame.updateMs,
+    renderMs: frame.renderMs,
+    drawCalls: r?.drawCalls ?? 0,
+    vertices: r?.vertices ?? 0,
+    triangles: r?.triangles ?? 0,
+    stutter: stutter ? stutter.cause : '',
+    heapMb: heap ? heap.used / (1024 * 1024) : null,
+    playing: playingContext(),
+  }, describePerfScene);
   const cutoff = now - FPS_WINDOW_MS;
   while (fpsSamples.length && fpsSamples[0].t < cutoff) fpsSamples.shift();
   drawFpsGraph(now);
@@ -1660,41 +2512,236 @@ function drawFpsGraph(now) {
     ctx.lineTo(width, y);
     ctx.stroke();
   };
+  // Reference lines: 30 and 60 FPS, and the display's own rate when higher.
   ctx.strokeStyle = '#333';
   ctx.lineWidth = 1;
+  strokeHz(30);
   strokeHz(60);
   const hz = displayRefreshHz();
-  if (hz > 60) strokeHz(hz);
+  if (hz > 60) {
+    ctx.strokeStyle = '#3d4a1a';
+    strokeHz(hz);
+  }
   if (!fpsSamples.length) return;
   ctx.strokeStyle = '#d2ff00';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   fpsSamples.forEach((sample, index) => {
     const x = ((sample.t - (now - FPS_WINDOW_MS)) / FPS_WINDOW_MS) * (width - 1);
-    const y = 1 + (height - 2) * (1 - Math.max(0, sample.fps) / ceiling);
+    const y = 1 + (height - 2) * (1 - Math.min(ceiling, Math.max(0, sample.fps)) / ceiling);
     if (index === 0) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
   });
   ctx.stroke();
+  // Stutter markers: a red tick at the top for each frame over twice the display's frame time.
+  ctx.fillStyle = '#d96c5f';
+  for (const sample of fpsSamples) {
+    if (!sample.stutter) continue;
+    const x = ((sample.t - (now - FPS_WINDOW_MS)) / FPS_WINDOW_MS) * (width - 1);
+    ctx.fillRect(Math.round(x) - 1, 0, 2, 6);
+  }
+}
+
+/** What is playing, for stutter context and recordings: the selected skeleton's animation, else the first playing one. */
+function playingContext() {
+  const inst = selected() ?? scene.instances.find((item) => item.playing);
+  if (!inst) return '';
+  const entry = currentTrackEntry(inst.spine?.state, 0);
+  const anim = entry?.animation?.name;
+  return anim ? `${inst.name} · ${anim}` : inst.name;
+}
+
+/** Scene description stored with a recording. */
+function describePerfScene() {
+  return {
+    userAgent: navigator.userAgent,
+    devicePixelRatio: window.devicePixelRatio,
+    displayHz: displayRefreshHz(),
+    textureUnits: { counted: getTextureUnits(), gpu: getGpuTextureUnits() },
+    skeletons: scene.instances.map((inst) => {
+      const m = measureInstance(inst);
+      return {
+        name: inst.name,
+        visible: inst.visible !== false,
+        drawCalls: m.drawCalls,
+        vertices: m.vertexCount,
+        triangles: m.triangles,
+        atlasBytes: m.memoryBytes,
+        updateMs: getUpdateMsForInstance(inst),
+        load: getLoadStatsForInstance(inst),
+      };
+    }),
+  };
+}
+
+/** @param {number} n */
+function fmtInt(n) {
+  return Math.round(n).toLocaleString('en-US');
+}
+
+/** @param {number} ms */
+function fmtMs(ms) {
+  return `${ms.toFixed(ms < 10 ? 2 : 1)} ms`;
+}
+
+/** @param {Record<string, number> | null | undefined} breaks */
+function breaksText(breaks) {
+  if (!breaks) return '';
+  const parts = [];
+  if (breaks.textures) parts.push(`${breaks.textures} for textures (more pages than units)`);
+  if (breaks.blend) parts.push(`${breaks.blend} for blend mode (Multiply / Screen)`);
+  if (breaks.vertices) parts.push(`${breaks.vertices} for the 65,535-vertex limit`);
+  return parts.length ? `Extra draw calls: ${parts.join(', ')}.` : '';
+}
+
+/** @param {string} blends "Normal: 3, Multiply: 1" */
+function blendsNote(blends) {
+  const names = blends.split(', ').map((p) => p.split(':')[0]);
+  const own = names.filter((n) => n === 'Multiply' || n === 'Screen');
+  return own.length ? `${own.join(' and ')} need their own draw call state; Normal and Additive share one.` : '';
+}
+
+/** @param {string} text */
+function escapeHtml(text) {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+let pageMemoryBusy = false;
+
+function refreshMemory() {
+  const heap = readJsHeap();
+  const heapRow = document.getElementById('perf-heap-row');
+  if (heapRow) heapRow.hidden = !heap;
+  if (heap) setText('perf-heap', `${formatMb(heap.used)} MB used · ${formatMb(heap.allocated)} MB allocated`);
+  const button = document.getElementById('perf-measure-mem');
+  const can = canMeasurePageMemory();
+  if (button) button.hidden = !can;
+  if (!pageMemoryBusy) {
+    const reason = pageMemoryUnavailableReason();
+    setText('perf-mem-note', [heap ? '' : 'JS heap needs Chrome or Edge.', reason, 'GPU memory is not visible to web pages; Chrome’s Task Manager (Shift+Esc) shows it.'].filter(Boolean).join(' '));
+  }
+}
+
+async function onMeasurePageMemory() {
+  if (pageMemoryBusy) return;
+  pageMemoryBusy = true;
+  const button = /** @type {HTMLButtonElement | null} */ (document.getElementById('perf-measure-mem'));
+  if (button) button.disabled = true;
+  setText('perf-mem-note', 'Measuring… Chrome waits for its next garbage collection, which can take several seconds.');
+  try {
+    const { total, byType } = await measurePageMemory();
+    const row = document.getElementById('perf-page-mem-row');
+    if (row) row.hidden = false;
+    setText('perf-page-mem', `${formatMb(total)} MB`);
+    const parts = Object.entries(byType).sort((a, b) => b[1] - a[1]).map(([type, bytes]) => `${type} ${formatMb(bytes)} MB`);
+    setText('perf-page-mem-detail', `${parts.join(' · ')} · measured ${new Date().toLocaleTimeString()}`);
+  } catch (error) {
+    setText('perf-page-mem-detail', `Measurement failed: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    pageMemoryBusy = false;
+    if (button) button.disabled = false;
+    refreshMemory();
+  }
+}
+
+function bindPerfUnits() {
+  if (perfUnitsBound) return;
+  // Set first: everything below adds listeners, which must happen once even if the units select is missing.
+  perfUnitsBound = true;
+  document.getElementById('perf-measure-mem')?.addEventListener('click', () => { void onMeasurePageMemory(); });
+  bindBudget(ui, () => saveUiState(ui), () => { perfDetailAt = 0; });
+  bindRecorder(describePerfScene);
+  document.getElementById('perf-breakdown')?.addEventListener('click', (event) => {
+    const row = event.target instanceof Element ? event.target.closest('.perf-bd-row[data-id]') : null;
+    const id = row?.getAttribute('data-id');
+    if (id) selectInstance(id);
+  });
+  const select = document.getElementById('perf-units');
+  if (!(select instanceof HTMLSelectElement)) return;
+  const gpu = getGpuTextureUnits();
+  const options = [gpu, 4, 2, 1].filter((n, i, all) => n <= gpu && all.indexOf(n) === i);
+  select.innerHTML = options.map((n) => `<option value="${n}">${n}${n === gpu ? ' (this GPU)' : ''}</option>`).join('');
+  select.value = String(getTextureUnits());
+  select.addEventListener('change', () => {
+    setTextureUnits(Number(select.value));
+    perfDetailAt = 0;
+    atlasHudCache = null;
+  });
 }
 
 function refreshPerf() {
-  recordFps(readFps());
+  const frame = readFrameStats();
+  recordFrame(frame);
   setText('perf-fps', String(Math.round(readFps())));
+  syncPerfScope();
+  bindPerfUnits();
+
+  const now = performance.now();
+  if (now - perfDetailAt < PERF_DETAIL_MS) return;
+  perfDetailAt = now;
+
+  // Frame: averages and worst over the window.
+  if (fpsSamples.length) {
+    const intervals = fpsSamples.map((s) => s.ms).filter((ms) => ms > 0);
+    const avg = intervals.reduce((a, b) => a + b, 0) / (intervals.length || 1);
+    const worst = Math.max(0, ...intervals);
+    const slow = [...intervals].sort((a, b) => b - a).slice(0, Math.max(1, Math.ceil(intervals.length / 100)));
+    const lowFps = 1000 / (slow.reduce((a, b) => a + b, 0) / slow.length);
+    const hz = displayRefreshHz();
+    setText('perf-fps-target', fpsSamples.length >= 30 ? ` of ${hz} Hz display` : '');
+    setText('perf-frame-time', `${fmtMs(avg)} avg · ${fmtMs(worst)} worst`);
+    setText('perf-fps-low', `${Math.round(lowFps)} FPS`);
+  }
+  setText('perf-cpu', `${fmtMs(frame.updateMs)} update · ${fmtMs(frame.renderMs)} render`);
+  refreshMemory();
+
+  // Stage, live from the renderer.
+  const live = frame.renderer;
+  setText('perf-live-dc', live ? String(live.drawCalls) : '—');
+  setText('perf-live-tris', live ? fmtInt(live.triangles) : '—');
+  setText('perf-live-verts', live ? fmtInt(live.vertices) : '—');
+  if (fpsSamples.length) {
+    const peakDc = Math.max(...fpsSamples.map((s) => s.dc));
+    const peakVerts = Math.max(...fpsSamples.map((s) => s.verts));
+    setText('perf-live-peak', `${peakDc} draw calls · ${fmtInt(peakVerts)} vertices`);
+  }
+  setText('perf-live-breaks', live ? breaksText(live.batchBreaks) : '');
+
+  const recent = recentStutters();
+  setText('perf-stutters', String(recent.length));
+  setText('perf-stutter-list', recent.slice(-3).reverse()
+    .map((st) => `${Math.round(st.ms)} ms · ${st.cause}${st.context ? ` · ${st.context}` : ''}`)
+    .join('\n'));
+
+  const avgMs = fpsSamples.length ? fpsSamples.reduce((a, b) => a + b.ms, 0) / fpsSamples.length : null;
+  renderBudget({
+    frameMs: avgMs,
+    drawCalls: live ? live.drawCalls : null,
+    vertices: live ? live.vertices : null,
+    vramBytes: scene.instances.length ? sceneAtlasMemorySummary(scene.instances).gpuUniqueBytes : null,
+  });
+
   if (!scene.instances.length) {
     atlasHudCache = null;
+    setPerfEmpty('Open a skeleton to measure it.');
     return;
   }
 
   const selectedInst = selected();
   const scopeAll = scene.perfScope === 'all';
+  // All: visible skeletons only, matching countSceneDraws.
   const source = scopeAll
-    ? scene.instances
+    ? scene.instances.filter((i) => i.visible !== false)
     : (selectedInst ? [selectedInst] : []);
+
+  setText('perf-scope-title', scopeAll ? `All skeletons (${scene.instances.filter((i) => i.visible !== false).length} visible)` : 'Selected skeleton');
 
   const rows = source.map((inst) => measureInstance(inst));
   const total = sumPerf(rows);
-  const hudKey = atlasHudKey(scopeAll, selectedInst);
+  // All: draw the visible skeletons together so they batch with each other like on screen.
+  const draws = scopeAll ? countSceneDraws(scene.instances) : (rows[0]?.exact ? rows[0] : null);
+
+  const hudKey = `${atlasHudKey(scopeAll, selectedInst)}:${getTextureUnits()}`;
   if (!atlasHudCache || atlasHudCache.key !== hudKey) {
     const memory = formatPerfAtlasMemory(scene.perfScope, scene.instances, selectedInst);
     const pageInstances = scopeAll ? scene.instances : (selectedInst ? [selectedInst] : []);
@@ -1718,9 +2765,9 @@ function refreshPerf() {
 
   const poseNote = document.getElementById('perf-pose-note');
   if (poseNote) {
-    const label = selectedInst?.holdSetup ? 'setup pose' : 'current pose';
+    const label = !scopeAll && selectedInst?.holdSetup ? 'setup pose' : 'current pose';
     poseNote.textContent = source.length
-      ? `Vertices and draw calls: ${label}${scopeAll && scene.instances.length > 1 ? ' (summed)' : ''}.`
+      ? `Counted at the ${label}${scopeAll ? ', visible skeletons drawn together' : ', drawn alone'}${getTextureUnits() !== getGpuTextureUnits() ? `, with ${getTextureUnits()} texture unit(s)` : ''}.`
       : '';
   }
 
@@ -1729,28 +2776,113 @@ function refreshPerf() {
     let peakText = '';
     if (!scopeAll && selectedInst) {
       const report = getHealthReportForInstance(selectedInst);
-      if (report?.animations?.length && report.worstAnimation) {
-        const row = report.animations.find((a) => a.name === report.worstAnimation)
-          || report.animations.reduce((a, b) => (a.runtimeScore <= b.runtimeScore ? a : b));
-        peakText = `Health scan peak (${row.name}): ${row.hotDrawCalls} DC, ${row.hotVertices} verts`;
+      const sampled = report?.animations?.filter((a) => !a.runtimeSkipped) ?? [];
+      if (sampled.length) {
+        // Peaks per metric across every sampled animation, each with the animation it came from.
+        const dc = sampled.reduce((a, b) => (b.hotDrawCalls > a.hotDrawCalls ? b : a));
+        const verts = sampled.reduce((a, b) => (b.hotVertices > a.hotVertices ? b : a));
+        peakText = `Animation peak (health scan): ${dc.hotDrawCalls} draw calls in “${dc.name}”, ${verts.hotVertices} vertices in “${verts.name}”.`;
       }
     }
     peakEl.textContent = peakText;
     peakEl.style.display = peakText ? 'block' : 'none';
   }
 
-  setText('perf-vertices', source.length ? String(total.vertexCount) : '—');
-  setText('perf-draw-calls', source.length ? String(total.drawCalls) : '—');
-  setText('perf-bones', source.length ? String(total.bones) : '—');
-  setText('perf-constraints', source.length ? String(total.constraints) : '—');
+  const has = source.length > 0;
+  const single = !scopeAll && selectedInst;
+  const cpuRow = document.getElementById('perf-skel-cpu-row');
+  const loadRow = document.getElementById('perf-load-row');
+  if (cpuRow) cpuRow.hidden = !has;
+  if (loadRow) loadRow.hidden = !single;
+  if (has) {
+    const cpu = source.reduce((sum, inst) => sum + (getUpdateMsForInstance(inst) ?? 0), 0);
+    setText('perf-skel-cpu', fmtMs(cpu));
+  }
+  const load = single ? loadStatsText(getLoadStatsForInstance(selectedInst)) : { value: '', detail: '' };
+  setText('perf-load', load.value);
+  setText('perf-load-detail', load.detail);
+  setText('perf-draw-calls', has ? String(draws ? draws.drawCalls : total.drawCalls) : '—');
+  setText('perf-breaks', draws ? breaksText(draws.batchBreaks) : '');
+  setText('perf-vertices', has ? fmtInt(draws ? (draws.vertices ?? draws.vertexCount) : total.vertexCount) : '—');
+  setText('perf-triangles', has && draws?.triangles != null ? fmtInt(draws.triangles) : '—');
+  setText('perf-textures', has && draws?.textures != null ? String(draws.textures) : '—');
+  setText('perf-bones', has ? String(total.bones) : '—');
+  setText('perf-constraints', has ? String(total.constraints) : '—');
   setText('perf-constraints-detailed', total.constraintDetail);
   const detail = document.getElementById('perf-constraints-detailed');
   if (detail) detail.style.display = total.constraintDetail ? 'block' : 'none';
-  setText('perf-clippings', source.length ? String(total.clippingCount) : '—');
-  setText('perf-mask-verts', source.length ? String(total.clippingVertexCount) : '—');
-  setText('perf-blends', source.length ? total.blends : '—');
-  const scope = document.getElementById('btn-perf-scope');
-  if (scope) scope.textContent = scopeAll ? 'All' : 'Selected';
+  setText('perf-clippings', has ? String(total.clippingCount) : '—');
+  setText('perf-mask-verts', has ? String(total.clippingVertexCount) : '—');
+  const blends = draws?.blends ?? total.blends;
+  setText('perf-blends', has ? blends : '—');
+  setText('perf-blends-note', has ? blendsNote(blends) : '');
+
+  renderPerfBreakdown(scopeAll ? scene.instances : []);
+  setPerfEmpty(has ? '' : 'Select a skeleton, or switch to All.');
+}
+
+/**
+ * All mode: one row per skeleton (each drawn alone), heaviest first, click selects.
+ * @param {import('../app/sceneStore.js').SpineInstance[]} instances
+ */
+function renderPerfBreakdown(instances) {
+  const group = document.getElementById('perf-breakdown-group');
+  const host = document.getElementById('perf-breakdown');
+  if (!group || !host) return;
+  group.hidden = instances.length < 2;
+  if (group.hidden) return;
+  const rows = instances.map((inst) => {
+    const m = measureInstance(inst);
+    const atlas = marginalAtlasBytesForInstance(inst, instances);
+    return { inst, m, atlas };
+  }).sort((a, b) => b.m.drawCalls - a.m.drawCalls || b.m.vertexCount - a.m.vertexCount);
+  const html = `
+    <div class="perf-bd-head"><span>Skeleton</span><span>DC</span><span>Verts</span><span>CPU</span><span>Adds</span></div>
+    ${rows.map(({ inst, m, atlas }) => `
+      <button type="button" class="perf-bd-row${inst.id === scene.selectedId ? ' is-selected' : ''}${inst.visible === false ? ' is-hidden' : ''}" data-id="${escapeHtml(inst.id)}">
+        <span class="perf-bd-name">${escapeHtml(inst.name)}</span>
+        <span>${m.drawCalls}</span>
+        <span>${fmtInt(m.vertexCount)}</span>
+        <span>${(getUpdateMsForInstance(inst) ?? 0).toFixed(2)}</span>
+        <span>${formatMb(atlas.marginalBytes)} MB</span>
+      </button>`).join('')}
+    <p class="perf-hint">Each skeleton drawn alone; together they can batch into fewer calls. CPU = ms per frame updating it. Adds = atlas VRAM not already on the GPU from a lower skeleton.</p>
+  `;
+  if (host.dataset.html !== html) {
+    host.dataset.html = html;
+    host.innerHTML = html;
+  }
+}
+
+function syncPerfScope() {
+  document.querySelectorAll('[data-perf-scope]').forEach((button) => {
+    const on = /** @type {HTMLElement} */ (button).dataset.perfScope === scene.perfScope;
+    button.classList.toggle('is-active', on);
+    button.setAttribute('aria-pressed', String(on));
+  });
+}
+
+/** @param {string} message empty hides the note and shows the numbers */
+function setPerfEmpty(message) {
+  const note = document.getElementById('perf-empty');
+  if (!note) return;
+  if (note.textContent !== message) note.textContent = message;
+  note.hidden = !message;
+  document.getElementById('performance-panel')?.classList.toggle('is-empty', !!message);
+}
+
+function renderUndoButtons() {
+  const mod = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
+  const undoBtn = document.getElementById('btn-undo');
+  const redoBtn = document.getElementById('btn-redo');
+  if (undoBtn) {
+    undoBtn.dataset.tip = `Undo (${mod}Z)`;
+    /** @type {HTMLButtonElement} */ (undoBtn).disabled = !canUndo();
+  }
+  if (redoBtn) {
+    redoBtn.dataset.tip = `Redo (${mod}Shift+Z)`;
+    /** @type {HTMLButtonElement} */ (redoBtn).disabled = !canRedo();
+  }
 }
 
 /** @param {import('../app/sceneStore.js').SpineInstance | null} inst */
@@ -1775,17 +2907,21 @@ function refreshZoom() {
 }
 
 function renderFocus() {
-  for (const id of ['scene-panel', 'slots-panel', 'skins-panel', 'animations-panel', 'bones-panel', 'performance-panel']) {
+  for (const id of ['scene-panel', 'animations-panel', 'performance-panel']) {
     document.getElementById(id)?.classList.toggle('is-focused', id === focusedPanel);
   }
 }
 
 function applyPanelVisibility() {
-  document.getElementById('slots-panel')?.classList.remove('is-hidden');
   document.getElementById('performance-panel')?.classList.add('is-visible');
-  document.getElementById('skins-panel')?.classList.add('is-visible');
   document.getElementById('animations-panel')?.classList.add('is-visible');
-  document.getElementById('bones-panel')?.classList.add('is-visible');
+}
+
+function toggleSelectionMarks() {
+  ui.selectionMarks = !selectionMarksVisible();
+  setSelectionMarksVisible(ui.selectionMarks);
+  persistUi();
+  emit();
 }
 
 function persistUi() {
@@ -1836,16 +2972,23 @@ function onKeyDown(event) {
       runOnSceneSelection(toggleLocked);
       return;
     }
-    if (event.code === 'KeyA' && event.shiftKey) {
-      if (!selectedInstances().length) return;
+  }
+  if (event.code === 'KeyO' && !command && !event.shiftKey && !event.altKey) {
+    event.preventDefault();
+    toggleSelectionMarks();
+    return;
+  }
+  if (event.code === 'KeyS' && !command && !event.shiftKey && !event.altKey) {
+    const inst = selected();
+    if (inst?.previousSkins) {
       event.preventDefault();
-      runOnSceneSelection(toggleStageAnimations);
+      withHistory(() => flipSkins(inst));
       return;
     }
   }
   if (event.code === 'KeyH' && !command && !event.shiftKey && !event.altKey) {
     const inst = selected();
-    if (inst && focusedPanel === 'slots-panel' && inst.selectedSlot) {
+    if (inst && focusedPanel === 'scene-panel' && inst.selectedSlot) {
       event.preventDefault();
       withHistory(() => {
         toggleSlotHidden(inst, inst.selectedSlot);
@@ -1884,8 +3027,38 @@ function onKeyDown(event) {
     return;
   }
   if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+    if (document.activeElement?.closest('#scene-list') && openOrCloseOutlinerRow(event.key === 'ArrowRight')) {
+      event.preventDefault();
+      return;
+    }
     seekByKeyboard(event);
   }
+}
+
+/**
+ * Tree keys while the tree has focus: → opens the cursor row, then steps into it; ← shuts it, then steps to its parent.
+ * @param {boolean} forward
+ * @returns {boolean} whether the key was used
+ */
+function openOrCloseOutlinerRow(forward) {
+  const row = outlinerRows.find((item) => item.node.key === (outlinerCursor || outlinerSelectionKey()));
+  if (!row) return false;
+  const open = outlinerRows[row.index + 1]?.path.includes(row.node.key) ?? false;
+  if (forward) {
+    if (!row.node.children.length) return true;
+    if (!open) {
+      setOutlinerOpen(row.node.key, true);
+      renderSceneList();
+    } else moveOutlinerCursor(1);
+  } else if (open && row.node.children.length) {
+    setOutlinerOpen(row.node.key, false);
+    renderSceneList();
+  } else {
+    const parent = outlinerRows.find((item) => item.node.key === row.path[row.path.length - 1]);
+    if (parent) moveOutlinerCursor(parent.index - row.index);
+  }
+  document.querySelector(`#scene-list li[data-key="${CSS.escape(outlinerCursor || '')}"] :is(.outliner-name, .scene-name)`)?.focus();
+  return true;
 }
 
 /** @param {KeyboardEvent} event */
@@ -1895,39 +3068,41 @@ function onKeyUp(event) {
 
 /** @param {number} direction */
 function movePanel(direction) {
+  if (focusedPanel === 'scene-panel') {
+    moveOutlinerCursor(direction);
+    return;
+  }
   const inst = selected();
   if (!inst) return;
-  if (focusedPanel === 'scene-panel') {
-    const ordered = [...scene.instances].sort((a, b) => a.zIndex - b.zIndex);
-    const index = ordered.findIndex((item) => item.id === scene.selectedId);
-    const next = clampIndex(index, ordered.length, direction);
-    if (ordered[next]) selectInstance(ordered[next].id);
-    if (scene.selectedId) {
-      document.querySelector(`#scene-list li[data-id="${CSS.escape(scene.selectedId)}"]`)?.scrollIntoView({ block: 'nearest' });
-    }
-  } else if (focusedPanel === 'slots-panel') {
-    const names = inst.spine.skeleton.data.slots.map((slot) => slot.name)
-      .filter((name) => matchesFilter(name, panelFilters.slots));
-    const index = names.indexOf(inst.selectedSlot || '');
-    const next = clampIndex(index, names.length, direction);
-    setSelectedSlot(inst, names[next]);
-    emit();
-    document.querySelector('#slots-list .slot-name.is-selected')?.scrollIntoView({ block: 'nearest' });
-  } else if (focusedPanel === 'animations-panel') {
+  if (focusedPanel === 'animations-panel') {
     const anims = (inst.spine.skeleton.data.animations || [])
       .filter((anim) => matchesFilter(anim.name, panelFilters.animations));
     const index = anims.findIndex((anim) => anim.name === inst.tracks[inst.selectedTrack]);
     const next = clampIndex(index, anims.length, direction);
     if (anims[next]) setTrack(inst, inst.selectedTrack, anims[next].name);
-  } else if (focusedPanel === 'bones-panel') {
-    const bones = (inst.spine.skeleton.data.bones || [])
-      .filter((bone) => matchesFilter(bone.name, panelFilters.bones));
-    const index = bones.findIndex((bone) => bone.name === inst.selectedBone);
-    const next = clampIndex(index, bones.length, direction);
-    inst.selectedBone = bones[next]?.name || null;
-    emit();
-    document.querySelector('#bones-list button.is-selected')?.scrollIntoView({ block: 'nearest' });
+
   }
+}
+
+/**
+ * Walk the drawn outliner rows; rows that stand for something (asset, bone, slot) select it as the cursor lands.
+ * @param {number} direction
+ */
+function moveOutlinerCursor(direction) {
+  if (!outlinerRows.length) return;
+  const index = outlinerRows.findIndex((row) => row.node.key === (outlinerCursor || outlinerSelectionKey()));
+  const row = outlinerRows[clampIndex(index, outlinerRows.length, direction)];
+  if (!row) return;
+  const key = row.node.key;
+  const inst = scene.instances.find((item) => item.id === key.slice(0, key.indexOf('|')));
+  if (!inst) return;
+  outlinerCursor = key;
+  outlinerScrollPending = true;
+  if (row.node.kind === 'asset') {
+    if (inst.selectedSlot) setSelectedSlot(inst, null);
+    inst.selectedBone = null;
+    selectInstance(inst.id);
+  } else activateOutlinerRow(inst, row.node);
 }
 
 /**
@@ -1980,6 +3155,9 @@ function applySeekRatio(ratio) {
 
 /** @param {import('../app/sceneStore.js').SpineInstance} item */
 function resetInstanceToSetup(item) {
+  // Play brings these back.
+  if (Object.keys(item.tracks).length) item.savedTracks = { ...item.tracks };
+  item.eventLog?.clear();
   item.playing = false;
   item.holdSetup = true;
   item.spine.state.clearTracks();
@@ -1991,19 +3169,13 @@ function resetInstanceToSetup(item) {
 }
 
 function toggleSetup() {
-  const picks = selectedInstances();
-  if (picks.length) {
-    if (picks.every((item) => item.holdSetup)) return;
-    scene.playing = false;
-    for (const item of picks) resetInstanceToSetup(item);
-    emit();
-    return;
-  }
-  if (!scene.instances.length) return;
-  scene.playing = false;
-  for (const item of scene.instances) resetInstanceToSetup(item);
+  const targets = selectedInstances().length ? selectedInstances() : scene.instances;
+  if (!targets.length) return;
+  for (const item of targets) resetInstanceToSetup(item);
+  scene.playing = scene.instances.some((item) => item.playing);
   emit();
 }
+
 
 /** @param {import('../app/sceneStore.js').SpineInstance} inst @param {number} track @param {string} name */
 function setTrack(inst, track, name) {
@@ -2031,12 +3203,13 @@ function clearTrack(inst, track) {
   emit();
 }
 
+/** Download the layout only; the skeleton files stay with the user and Open scene asks for them. */
 function saveScene() {
   const blob = new Blob([JSON.stringify(serializeScene(scene), null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = 'spine-scene.json';
+  link.download = 'tabula-scene.json';
   link.click();
   URL.revokeObjectURL(url);
 }

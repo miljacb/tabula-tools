@@ -18,4 +18,8 @@ export const MASK_COLORS = [
 export const UI_STORAGE_KEY = 'spine-viewer-web.ui';
 export const SCREEN_STORAGE_KEY = 'spine-viewer-web.screens';
 export const DRAWER_STORAGE_KEY = 'spine-viewer-web.drawers';
+export const SIMPLE_MODE_STORAGE_KEY = 'spine-viewer-web.simple';
 export const SESSION_DB_NAME = 'spine-viewer-web-session';
+
+export const OUTLINER_STORAGE_KEY = 'tabula-viewer:outliner-open';
+export const MANUAL_TAB_STORAGE_KEY = 'tabula-viewer:manual-tab';

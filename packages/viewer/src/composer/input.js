@@ -35,6 +35,14 @@ export function setOnDoublePick(fn) {
   onDoublePick = fn;
 }
 
+/** @type {() => void} */
+let onEmptyClick = () => {};
+
+/** Runs on a plain click on empty stage, before the selection is cleared. @param {() => void} fn */
+export function setOnEmptyClick(fn) {
+  onEmptyClick = fn;
+}
+
 /** @param {HTMLCanvasElement} canvas */
 export function bindPointer(canvas) {
   canvas.addEventListener('wheel', (event) => {
@@ -218,7 +226,10 @@ export function bindPointer(canvas) {
       const dy = drag.lastY - drag.startClientY;
       const dist = Math.hypot(dx, dy);
       if (dist < MARQUEE_THRESHOLD_PX) {
-        if (!drag.additive) selectInstance(null);
+        if (!drag.additive) {
+          onEmptyClick();
+          selectInstance(null);
+        }
       } else {
         const ids = instanceIdsFullyInsideMarquee(
           drag.startClientX,

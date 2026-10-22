@@ -93,43 +93,16 @@ body {
   white-space: nowrap;
   user-select: text;
 }
-#slots-panel,
-#skins-panel,
-#animations-panel,
-#bones-panel {
+#animations-panel {
   outline: 1px solid transparent;
   transition: outline 0.15s ease;
 }
-#slots-panel.is-focused,
-#skins-panel.is-focused,
-#animations-panel.is-focused,
-#bones-panel.is-focused {
+#animations-panel.is-focused {
   outline: 1px solid var(--accent);
   background: rgba(45, 45, 45, 0.88);
 }
 
-#slots-panel {
-  position: fixed;
-  top: 44px;
-  left: 12px;
-  width: 220px;
-  max-height: calc(45vh - 40px);
-  overflow: hidden;
-  background: rgba(30, 30, 30, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
-  padding: 6px 8px;
-  color: #ccc;
-  font-family: var(--font);
-  font-size: 11px;
-  z-index: 9999;
-  display: flex;
-  flex-direction: column;
-}
 
-#slots-panel.is-hidden {
-  display: none;
-}
 
 .collapsible-panel.is-collapsed {
   max-height: 25px !important;
@@ -137,27 +110,6 @@ body {
   overflow: hidden;
 }
 
-#slots-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-shrink: 0;
-  cursor: pointer;
-  margin-bottom: 6px;
-}
-#slots-panel.is-collapsed #slots-header {
-  margin-bottom: 0;
-}
-#slots-title-container {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-#slots-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
 #btn-pulse-toggle {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -204,58 +156,6 @@ body {
 }
 #btn-mask-color[data-mask='red'] {
   color: #e44;
-}
-#slots-title {
-  font-weight: 600;
-  color: #ddd;
-  margin-bottom: 4px;
-}
-#slots-list {
-  margin: 0;
-  padding: 0;
-  line-height: 1.4;
-  flex: 1;
-  overflow-y: auto;
-  min-height: 0;
-  list-style: none;
-  counter-reset: slot-counter;
-}
-#slots-list li {
-  margin: 0;
-  padding: 0;
-  word-break: break-word;
-  display: flex;
-  align-items: baseline;
-}
-#slots-list li::before {
-  content: counter(slot-counter) ". ";
-  counter-increment: slot-counter;
-  color: #777;
-  font-size: 9px;
-  min-width: 20px;
-  text-align: right;
-  margin-right: 6px;
-  flex-shrink: 0;
-}
-#slots-list .slot-name {
-  text-align: left;
-  border: 0;
-  background: transparent;
-  color: #ccc;
-  font-family: inherit;
-  font-size: inherit;
-  line-height: 1.4;
-  border-radius: 4px;
-  padding: 1px 4px;
-  cursor: pointer;
-}
-#slots-list .slot-name:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-}
-#slots-list .slot-name.is-selected {
-  background: var(--selection);
-  color: #569cd6;
 }
 /* Remove default focus outline that causes the orange/white box */
 button:focus,
@@ -397,37 +297,6 @@ label:focus-within {
   padding-top: 4px;
 }
 
-/* ── Skins panel ─────────────────────────────────────────── */
-#skins-panel {
-  position: fixed;
-  top: 44px; /* JS repositions below perf panel when both are visible */
-  right: 12px;
-  width: 220px;
-  max-height: calc(33vh - 20px);
-  overflow: hidden;
-  background: rgba(30, 30, 30, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
-  padding: 6px 8px;
-  color: #ccc;
-  font-family: var(--font);
-  font-size: 11px;
-  z-index: 9999;
-  display: none;
-  flex-direction: column;
-}
-#skins-panel.is-visible {
-  display: flex;
-}
-#skins-panel.is-collapsed {
-  max-height: 30px !important;
-  padding-bottom: 10px !important;
-}
-#skins-list {
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
-}
 .skin-item {
   display: flex;
   align-items: center;
@@ -489,65 +358,6 @@ label:focus-within {
   flex-shrink: 0;
 }
 
-/* ── Bones panel ─────────────────────────────────────────── */
-#bones-panel {
-  position: fixed;
-  top: 44px; /* repositioned by JS */
-  left: 12px;
-  width: 220px;
-  max-height: calc(50vh - 30px);
-  overflow: hidden;
-  background: rgba(30, 30, 30, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
-  padding: 6px 8px;
-  color: #ccc;
-  font-family: var(--font);
-  font-size: 11px;
-  z-index: 9999;
-  display: none;
-  flex-direction: column;
-}
-#bones-panel.is-visible {
-  display: flex;
-}
-#bones-panel.is-collapsed {
-  max-height: 30px !important;
-  padding-bottom: 10px !important;
-}
-#bones-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
-}
-#bones-list li button {
-  display: block;
-  width: 100%;
-  text-align: left;
-  background: transparent;
-  border: none;
-  color: #ccc;
-  font-family: inherit;
-  font-size: 11px;
-  padding: 1px 4px;
-  border-radius: 4px;
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 1.4;
-}
-#bones-list li button:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-}
-#bones-list li button.is-selected {
-  background: var(--selection);
-  color: #569cd6;
-}
 /* Bone transform inspector — pinned to bottom */
 .bone-inspector {
   flex-shrink: 0;

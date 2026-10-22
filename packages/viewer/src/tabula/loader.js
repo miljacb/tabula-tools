@@ -58,17 +58,23 @@ export function atlasInfo(atlas, textures) {
  * @param {{ atlasText: string, skeletonJson: unknown, pageUrls: Record<string, string>, name: string }} source
  */
 export async function buildTabulaAsset(source) {
+  const t0 = performance.now();
   const atlas = new AtlasParser().parse(source.atlasText);
   const data = new SpineJsonParser().parse(source.skeletonJson, source.name);
   const validation = validateSkeleton(data, atlas);
   if (validation.errors.length) throw new Error(`${source.name}: ${validation.errors.join('; ')}`);
+  const parseMs = performance.now() - t0;
   /** @type {Map<string, PIXI.BaseTexture>} */
   const textures = new Map();
+  /** @type {{ name: string, ms: number, format: string }[]} */
+  const pageTimes = [];
   try {
     for (const page of atlas.pages) {
       const url = source.pageUrls[page.name];
       if (!url) throw new Error(`Atlas page "${page.name}" was not in the drop.`);
+      const tp = performance.now();
       const base = await loadBaseTexture(url);
+      pageTimes.push({ name: page.name, ms: performance.now() - tp, format: 'image' });
       configurePage(base, page);
       textures.set(page.name, base);
     }
@@ -84,5 +90,12 @@ export async function buildTabulaAsset(source) {
     atlas: atlasInfo(atlas, textures),
     textures: [...textures.values()],
     warnings: validation.warnings,
+    /** Milliseconds: parsing JSON + atlas + validation, and loading/decoding each page image. */
+    loadStats: {
+      parseMs,
+      decodeMs: pageTimes.reduce((sum, p) => sum + p.ms, 0),
+      uploadMs: /** @type {number | null} */ (null),
+      pages: pageTimes,
+    },
   };
 }

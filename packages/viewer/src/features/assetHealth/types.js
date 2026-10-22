@@ -21,6 +21,11 @@
  * @property {boolean} [runtimeSkipped]
  * @property {string} [runtimeScoreTip]
  * @property {string[]} [exportFindingTips]
+ * @property {number} [samples] poses sampled (0 for skipped clips)
+ * @property {number} [peakClipping]
+ * @property {HealthFinding[]} [runtimeFindings] findings for the clip's peak pose
+ * @property {HealthFinding[]} [exportFindings] export lint for this clip
+ * @property {ReturnType<typeof import('./rules/exportAnimations.js').countAnimationJsonStats> | null} [stats] JSON key stats
  */
 
 /**
@@ -42,6 +47,22 @@
  * @property {'done'} state
  * @property {AtlasScanMeta} [atlas]
  * @property {{ overall: string, runtime: string, export: string }} [scoreTips]
+ * @property {number} [setupRuntimeScore]
+ * @property {SetupStats} [setup]
+ */
+
+/**
+ * @typedef {Object} SetupStats
+ * @property {number} bones
+ * @property {number} slots
+ * @property {number} vertexCount
+ * @property {number} drawCalls
+ * @property {number} clippingCount
+ * @property {number} constraints
+ * @property {string} constraintDetail
+ * @property {string} blends
+ * @property {number} animationCount
+ * @property {number} skinCount
  */
 
 /**
@@ -50,6 +71,7 @@
  * @property {number} marginalBytes
  * @property {number} pageCount
  * @property {number} sharedPageCount
+ * @property {number} [duplicatePageCount]
  * @property {number} sceneContentUniqueBytes
  * @property {number} sceneGpuUniqueBytes
  * @property {number} sceneStackedBytes

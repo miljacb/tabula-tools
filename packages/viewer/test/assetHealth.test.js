@@ -102,3 +102,50 @@ test('exportHealthReportJson is valid JSON', () => {
   assert.equal(parsed.overallScore, 70);
   assert.equal(parsed.schemaVersion, 1);
 });
+
+test('countAnimationJsonStats counts Spine 4 keys that omit time on the first key', () => {
+  const stats = countAnimationJsonStats({
+    bones: { hip: { rotate: [{ value: 0 }, { time: 1, value: 90 }], translatex: [{ value: 1 }] } },
+    slots: { arm: { rgba: [{ color: 'ffffffff' }, { time: 0.5, color: 'ff0000ff' }] } },
+  });
+  assert.equal(stats.keys, 5);
+  assert.equal(stats.timelines, 3);
+});
+
+test('countAnimationJsonStats counts deform keys in 4.0 and 4.1+ layouts', () => {
+  const legacy = countAnimationJsonStats({ deform: { default: { body: { mesh: [{}, { time: 1 }] } } } });
+  assert.equal(legacy.deformKeys, 2);
+  const modern = countAnimationJsonStats({
+    attachments: { default: { body: { mesh: { deform: [{}, { time: 1 }, { time: 2 }], sequence: [{}] } } } },
+  });
+  assert.equal(modern.deformKeys, 3);
+  assert.equal(modern.sequenceKeys, 1);
+});
+
+test('countAnimationJsonStats counts constraint timelines', () => {
+  const stats = countAnimationJsonStats({
+    ik: { leg: [{}, { time: 1 }] },
+    path: { spine: { position: [{}, { time: 1 }] } },
+  });
+  assert.equal(stats.constraintKeys, 4);
+  assert.equal(stats.keys, 4);
+});
+
+test('runtimeFindingsFromPerf flags blend modes even when Normal is listed first', async () => {
+  const { runtimeFindingsFromPerf } = await import('../src/features/assetHealth/rules/runtimePillars.js');
+  const findings = runtimeFindingsFromPerf({
+    bones: 10, vertexCount: 100, drawCalls: 2, clippingCount: 0, constraints: 0,
+    blends: 'Normal: 10, Additive: 2, Screen: 1',
+  });
+  assert.ok(findings.some((f) => f.id === 'runtime-blend'));
+});
+
+test('runtimeFindingsFromPerf scores vertices and draw calls as separate categories', async () => {
+  const { runtimeFindingsFromPerf } = await import('../src/features/assetHealth/rules/runtimePillars.js');
+  const findings = runtimeFindingsFromPerf({
+    bones: 10, vertexCount: 5000, drawCalls: 40, clippingCount: 0, constraints: 0, blends: 'None',
+  });
+  const { breakdown } = scoreFromFindings(findings);
+  assert.equal(breakdown['runtime.vertices'], 15);
+  assert.equal(breakdown['runtime.drawcalls'], 15);
+});

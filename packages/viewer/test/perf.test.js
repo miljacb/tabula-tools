@@ -66,8 +66,25 @@ test('power-of-two textures include the mip chain, and separate uploads both cou
     spine: { skeleton: { drawOrder: [], bones: [], data: {} } },
   });
   const total = sumPerf([row(pot), row(other)]);
-  assert.equal(total.memoryBytes, Math.round(64 * 64 * 4 * 4 / 3) * 2);
+  // Exact chain 64², 32², … 1² = 5461 pixels × 4 bytes.
+  assert.equal(total.memoryBytes, 5461 * 4 * 2);
   assert.equal(total.pageInfo.length, 2);
   assert.match(total.pageInfo[0], /^1: /);
   assert.match(total.pageInfo[1], /^2: /);
+});
+
+test('mip chain of a non-square texture stops at 1 px per side', () => {
+  const p = page('wide.webp', 8, 2, 4);
+  p.texture.baseTexture.mipmap = 2;
+  const row = measureInstance({ atlas: { pages: [p] }, spine: { skeleton: { drawOrder: [], bones: [], data: {} } } });
+  // 8×2 + 4×1 + 2×1 + 1×1 = 23 pixels.
+  assert.equal(row.memoryBytes, 23 * 4);
+});
+
+test('compressed (KTX2) pages count their level buffers, not 4 bytes per pixel', () => {
+  const p = page('hero.ktx2', 256, 256, 7);
+  p.texture.baseTexture.resource = { _levelBuffers: [{ levelBuffer: new Uint8Array(65536) }, { levelBuffer: new Uint8Array(16384) }] };
+  const row = measureInstance({ atlas: { pages: [p] }, spine: { skeleton: { drawOrder: [], bones: [], data: {} } } });
+  assert.equal(row.memoryBytes, 65536 + 16384);
+  assert.match(row.pages[0].label, /compressed/);
 });

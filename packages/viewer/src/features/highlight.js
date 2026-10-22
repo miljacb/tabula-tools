@@ -4,7 +4,20 @@ import { slotHullVertices } from '../tabula/geometry.js';
 
 const HIGHLIGHT_Z = 9999998;
 const LINE_WIDTH = 2;
-const FILL_ALPHA = 0.45;
+const HALO_COLOR = 0x000000;
+const HALO_ALPHA = 0.6;
+
+/** Off hides every selection mark (slot outlines, bone marks) so the art can be seen clean. */
+let marksVisible = true;
+
+export function selectionMarksVisible() {
+  return marksVisible;
+}
+
+/** @param {boolean} visible */
+export function setSelectionMarksVisible(visible) {
+  marksVisible = visible;
+}
 
 /** @type {Map<string, PIXI.Graphics>} */
 const overlayById = new Map();
@@ -108,30 +121,60 @@ function applySlotColorTint(inst, slot) {
  * @param {Float32Array} vertices
  * @param {number} count
  */
-function fillAndStrokePolygon(gfx, color, vertices, count) {
+function strokePolygon(gfx, color, vertices, count) {
   if (count < 6) return;
-  const flat = Array.from(vertices.subarray(0, count));
-  gfx.beginFill(color, FILL_ALPHA);
-  gfx.drawPolygon(flat);
-  gfx.endFill();
-  gfx.lineStyle(LINE_WIDTH, color, 1);
-  gfx.moveTo(vertices[0], vertices[1]);
-  for (let i = 2; i < count; i += 2) {
-    gfx.lineTo(vertices[i], vertices[i + 1]);
+  // Outline only, so the slot's art stays visible; a dark halo under it keeps it readable on light art.
+  for (const [width, lineColor, alpha] of [[LINE_WIDTH + 2, HALO_COLOR, HALO_ALPHA], [LINE_WIDTH, color, 1]]) {
+    gfx.lineStyle(width, lineColor, alpha);
+    gfx.moveTo(vertices[0], vertices[1]);
+    for (let i = 2; i < count; i += 2) {
+      gfx.lineTo(vertices[i], vertices[i + 1]);
+    }
+    gfx.closePath();
   }
-  gfx.closePath();
+}
+
+const BONE_MARK_COLOR = 0xd2ff00;
+
+/**
+ * Mark the selected bone: a ring at its origin and a line along its length, in skeleton space like the slot hulls.
+ * @param {PIXI.Graphics} gfx
+ * @param {any} bone
+ * @param {number} [alpha] fainter for a hovered row
+ */
+function drawBoneMark(gfx, bone, alpha = 1) {
+  const length = bone.data?.length || 0;
+  gfx.lineStyle(2, BONE_MARK_COLOR, alpha);
+  if (length > 0) {
+    gfx.moveTo(bone.worldX, bone.worldY);
+    gfx.lineTo(bone.worldX + length * bone.a, bone.worldY + length * bone.c);
+  }
+  gfx.beginFill(BONE_MARK_COLOR, 0.25 * alpha);
+  gfx.drawCircle(bone.worldX, bone.worldY, 6);
+  gfx.endFill();
 }
 
 /**
  * @param {import('../app/sceneStore.js').SpineInstance | null} inst
+ * @param {{ bone?: boolean }} [options] `bone` also marks the selected bone (the asset shown in the inspector)
  */
-export function applySlotHighlight(inst) {
+export function applySlotHighlight(inst, { bone = false } = {}) {
   if (!inst?.spine?.skeleton) {
     clearSlotHighlight(inst);
     return;
   }
   const gfx = ensureOverlay(inst);
   gfx.clear();
+
+  if (bone && inst.selectedBone) {
+    const picked = inst.spine.skeleton.findBone(inst.selectedBone);
+    if (picked?.active !== false && picked) drawBoneMark(gfx, picked);
+  }
+  // Hovering a bone (or slot) row in the outliner shows where it is, without selecting it.
+  if (inst.hoverBone && !(bone && inst.hoverBone === inst.selectedBone)) {
+    const hovered = inst.spine.skeleton.findBone(inst.hoverBone);
+    if (hovered && hovered.active !== false) drawBoneMark(gfx, hovered, 0.5);
+  }
 
   if (!inst.selectedSlot || inst.hiddenSlots?.has(inst.selectedSlot)) return;
 
@@ -148,5 +191,5 @@ export function applySlotHighlight(inst) {
 
   const verts = slotHullVertices(inst.atlas.data, slot, attachment);
   if (!verts) return;
-  fillAndStrokePolygon(gfx, rgbToHexFrom(highlightRgb(inst)), verts, verts.length);
+  strokePolygon(gfx, rgbToHexFrom(highlightRgb(inst)), verts, verts.length);
 }

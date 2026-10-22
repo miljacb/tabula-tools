@@ -1,5 +1,5 @@
-import { DEFAULT_GRID_SIZE, DRAWER_STORAGE_KEY, SCREEN_STORAGE_KEY, UI_STORAGE_KEY } from '../constants.js';
-import { applySlotHighlight, clearSlotHighlight, disposeSlotHighlight } from '../features/highlight.js';
+import { DEFAULT_GRID_SIZE, DRAWER_STORAGE_KEY, MANUAL_TAB_STORAGE_KEY, OUTLINER_STORAGE_KEY, SIMPLE_MODE_STORAGE_KEY, SCREEN_STORAGE_KEY, UI_STORAGE_KEY } from '../constants.js';
+import { applySlotHighlight, clearSlotHighlight, disposeSlotHighlight, selectionMarksVisible } from '../features/highlight.js';
 import { applySlotVisibility } from '../features/slotVisibility.js';
 import { applySkins } from '../features/skins.js';
 import {
@@ -148,6 +148,7 @@ export function startTicker() {
 /** @param {number} dt */
 function tick(dt) {
   for (const inst of scene.instances) {
+    const tStart = performance.now();
     const scrubThis = scene.scrubbing && inst.id === scene.selectedId;
     const advance = inst.playing ? dt : 0;
     if (inst.holdSetup) {
@@ -159,9 +160,15 @@ function tick(dt) {
     if (typeof inst.spine.update === 'function') {
       inst.spine.update(delta);
     }
+    const spent = performance.now() - tStart;
+    const prev = updateMs.get(inst);
+    updateMs.set(inst, prev == null ? spent : prev * 0.9 + spent * 0.1);
     applySlotVisibility(inst);
-    paintConstraintGizmos(inst, debugFlags);
-    if (inst.id === scene.selectedId) applySlotHighlight(inst);
+    paintConstraintGizmos(inst, debugFlags.selectedOnly && !scene.selectedIds.has(inst.id) ? DEFAULT_DEBUG_FLAGS : debugFlags);
+    // A clicked slot stays highlighted through playback until it is clicked off, even when another asset is selected.
+    // The bone mark is for a clicked bone; a clicked slot also fills the inspector with its bone but is not marked.
+    const markBone = inst.id === scene.selectedId && !!inst.selectedBone && !inst.selectedSlot;
+    if (selectionMarksVisible() && (inst.selectedSlot || markBone || inst.hoverBone)) applySlotHighlight(inst, { bone: markBone });
     else clearSlotHighlight(inst);
   }
   afterTick();
@@ -177,7 +184,7 @@ export async function importFiles(files) {
   }
   const { images, atlases, skeletons } = classifyFiles(files);
   if (!skeletons.length) {
-    showBanner('Drop a Spine .json skeleton with its .atlas and images, or a .tbla export (or assets.manifest.json with its files).');
+    showBanner('Drop a .json skeleton with its .atlas and images, or a .tbla export (or assets.manifest.json with its files).');
     return;
   }
   if (!isHistoryApplying()) recordHistory();
@@ -258,8 +265,15 @@ function closePackage(rec) {
  * @param {Record<string, string>} [ids] asset ids to use, by skeleton name (session restore)
  */
 async function addPackageAssets(rec, names, ids = {}) {
+  const t0 = performance.now();
   const loaded = await loadSkeletons(rec.exp, names);
+  const groupMs = performance.now() - t0;
+  // Page timings come from tabula-pixi's own load report (fetch, decode or KTX2 transcode, per page).
+  const reported = rec.exp.manager.loadedPages();
   return loaded.map(({ name, asset }) => {
+    const pageNames = new Set(asset.atlas.pages.map((page) => page.name));
+    const pages = reported.filter((page) => pageNames.has(page.name))
+      .map((page) => ({ name: page.name, ms: page.ms, format: page.format, gpuBytes: page.gpuBytes }));
     const assetId = ids[name] || crypto.randomUUID();
     assets.set(assetId, {
       id: assetId,
@@ -271,6 +285,14 @@ async function addPackageAssets(rec, names, ids = {}) {
       atlasText: '',
       atlas: atlasInfo(asset.atlas, asset.textures),
       textures: [],
+      loadStats: {
+        parseMs: null,
+        decodeMs: pages.reduce((sum, page) => sum + page.ms, 0),
+        uploadMs: uploadTextures([...asset.textures.values()]),
+        pages,
+        groupMs,
+        groupShared: loaded.length,
+      },
       urls: [],
       refCount: 0,
       healthReport: null,
@@ -359,7 +381,7 @@ async function importPackage(files) {
  */
 async function addSkeletonFile(file, atlases, images, options = {}) {
   if (file.name.toLowerCase().endsWith('.skel')) {
-    throw new Error(`"${file.name}" is a binary Spine skeleton. Export it as JSON (Spine 4.1 or 4.2).`);
+    throw new Error(`"${file.name}" is a binary skeleton. Export it as JSON (version 4.1 or 4.2).`);
   }
   const atlasFile = findAtlas(file, atlases);
   if (!atlasFile) {
@@ -387,6 +409,7 @@ async function addSkeletonFile(file, atlases, images, options = {}) {
     for (const url of urls) URL.revokeObjectURL(url);
     throw error;
   });
+  built.loadStats.uploadMs = uploadTextures(built.textures);
   const spine = new TabulaView(built.asset);
   const assetId = options.assetId || crypto.randomUUID();
   assets.set(assetId, {
@@ -398,6 +421,7 @@ async function addSkeletonFile(file, atlases, images, options = {}) {
     atlasText,
     atlas: built.atlas,
     textures: built.textures,
+    loadStats: built.loadStats,
     urls,
     sourceFiles: {
       skeleton: file,
@@ -499,6 +523,35 @@ function queueHealthScan(inst) {
   if (asset.healthScanState === 'done' && asset.healthReport) return;
   if (asset.healthScanState === 'pending') return;
   enqueueInspect(inst, asset);
+}
+
+/**
+ * Upload textures to the GPU now and return the CPU milliseconds it took (Pixi otherwise uploads on first draw,
+ * which shows up as a hitch the first time the skeleton appears). GPU-side time is not measurable.
+ * @param {import('pixi.js').BaseTexture[]} textures
+ * @returns {number | null}
+ */
+function uploadTextures(textures) {
+  const system = /** @type {any} */ (app?.renderer)?.texture;
+  if (!system?.bind) return null;
+  const t0 = performance.now();
+  for (const base of textures) system.bind(base, 0);
+  system.unbind?.(textures[textures.length - 1]);
+  return performance.now() - t0;
+}
+
+/** @param {import('./sceneStore.js').SpineInstance | null | undefined} inst */
+export function getLoadStatsForInstance(inst) {
+  if (!inst) return null;
+  return assets.get(inst.assetId)?.loadStats ?? null;
+}
+
+/** Smoothed CPU milliseconds per frame spent updating each instance (posing, constraints, physics). */
+const updateMs = new WeakMap();
+
+/** @param {import('./sceneStore.js').SpineInstance | null | undefined} inst */
+export function getUpdateMsForInstance(inst) {
+  return inst ? updateMs.get(inst) ?? null : null;
 }
 
 /** @param {import('./sceneStore.js').SpineInstance | null | undefined} inst */
@@ -952,6 +1005,9 @@ export async function clearAllBrowserData() {
     localStorage.removeItem(UI_STORAGE_KEY);
     localStorage.removeItem(SCREEN_STORAGE_KEY);
     localStorage.removeItem(DRAWER_STORAGE_KEY);
+    localStorage.removeItem(SIMPLE_MODE_STORAGE_KEY);
+    localStorage.removeItem(OUTLINER_STORAGE_KEY);
+    localStorage.removeItem(MANUAL_TAB_STORAGE_KEY);
   } catch {
     /* ignore */
   }

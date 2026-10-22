@@ -2,11 +2,12 @@ import { measureInstance } from '../../perf.js';
 import { currentTrackEntry } from '../../../tabula/skeletonAccess.js';
 import { scoreFromFindings } from '../grade.js';
 import { applyAnimationPose, applySetupPose } from '../spinePose.js';
-import { runtimeFindingsFromPerf } from './runtimePillars.js';
+import { nonNormalBlendCount, runtimeFindingsFromPerf } from './runtimePillars.js';
 
 /** @typedef {import('../types.js').AnimationHealthRow} AnimationHealthRow */
 
 export const SAMPLE_HZ = 20;
+/** Long clips are capped, so the effective rate drops below SAMPLE_HZ past 4s. */
 export const MAX_SAMPLES_PER_ANIM = 80;
 
 /**
@@ -64,9 +65,11 @@ export function sampleAllAnimations(inst) {
         name: anim.name,
         duration: 0,
         runtimeScore: 50,
+        samples: 0,
+        runtimeFindings: [],
         runtimeSkipped: true,
         runtimeScoreTip:
-          'Duration 0s — runtime was not sampled (nothing to play). Score 50 is a neutral placeholder, not a pass or fail. Export checks for this clip are shown in the Export column.',
+          'Duration 0s — nothing to play, so runtime was not sampled and the clip does not affect the score.',
         exportWarns: 0,
         exportFails: 0,
         hotDrawCalls: 0,
@@ -81,36 +84,38 @@ export function sampleAllAnimations(inst) {
     const entry = inst.spine.state.setAnimation(0, anim.name, false);
     const step = 1 / SAMPLE_HZ;
     const sampleCount = Math.min(MAX_SAMPLES_PER_ANIM, Math.max(1, Math.ceil(duration / step)));
-    let maxDraw = 0;
-    let maxVerts = 0;
-    /** @type {import('../types.js').HealthFinding[]} */
-    let worstFindings = [];
+    /** Per-metric peaks across all sampled poses; the clip is scored on this combined worst case. */
+    let peak = null;
+    let peakNonNormal = -1;
 
     for (let i = 0; i <= sampleCount; i++) {
       const t = Math.min(duration, i * (duration / sampleCount));
       if (entry) entry.trackTime = t;
       applyAnimationPose(inst);
       const perf = measureInstance(inst);
-      maxDraw = Math.max(maxDraw, perf.drawCalls);
-      maxVerts = Math.max(maxVerts, perf.vertexCount);
-      const findings = runtimeFindingsFromPerf(perf, `t=${t.toFixed(2)}s`);
-      const { score } = scoreFromFindings(findings.filter((f) => f.category.startsWith('runtime.')));
-      if (!worstFindings.length || score < scoreFromFindings(worstFindings).score) {
-        worstFindings = findings;
+      const nonNormal = nonNormalBlendCount(perf.blends);
+      if (!peak) {
+        peak = { ...perf };
+        peakNonNormal = nonNormal;
+        continue;
+      }
+      peak.vertexCount = Math.max(peak.vertexCount, perf.vertexCount);
+      peak.drawCalls = Math.max(peak.drawCalls, perf.drawCalls);
+      peak.clippingCount = Math.max(peak.clippingCount, perf.clippingCount);
+      if (nonNormal > peakNonNormal) {
+        peak.blends = perf.blends;
+        peakNonNormal = nonNormal;
       }
     }
 
-    const runtimeOnly = worstFindings.filter((f) => f.category.startsWith('runtime.'));
-    const { score: runtimeScore } = scoreFromFindings(runtimeOnly);
-    const hotIssues = runtimeOnly.filter((f) => f.level === 'warn' || f.level === 'fail');
-    /** @type {string} */
-    let runtimeScoreTip;
-    if (!hotIssues.length) {
-      runtimeScoreTip =
-        `Sampled at ${SAMPLE_HZ} Hz (${sampleCount + 1} poses). Worst frame: ${maxDraw} draw calls, ${maxVerts} vertices. No runtime warnings at the hottest sample.`;
-    } else {
-      runtimeScoreTip = `Worst sampled frame (${maxDraw} DC, ${maxVerts} verts):\n${hotIssues.map((f) => `${f.title} — ${f.detail}`).join('\n')}`;
-    }
+    const runtimeFindings = runtimeFindingsFromPerf(peak, 'peak');
+    const { score: runtimeScore } = scoreFromFindings(runtimeFindings);
+    const hotIssues = runtimeFindings.filter((f) => f.level === 'warn' || f.level === 'fail');
+    const rate = (sampleCount / duration).toFixed(sampleCount / duration < 10 ? 1 : 0);
+    const head = `${sampleCount + 1} poses (~${rate} Hz). Peak: ${peak.drawCalls} draw calls, ${peak.vertexCount} vertices.`;
+    const runtimeScoreTip = hotIssues.length
+      ? `${head}\n${hotIssues.map((f) => `${f.title} — ${f.detail}`).join('\n')}`
+      : `${head} No runtime warnings.`;
 
     rows.push({
       name: anim.name,
@@ -120,8 +125,11 @@ export function sampleAllAnimations(inst) {
       runtimeScoreTip,
       exportWarns: 0,
       exportFails: 0,
-      hotDrawCalls: maxDraw,
-      hotVertices: maxVerts,
+      hotDrawCalls: peak.drawCalls,
+      hotVertices: peak.vertexCount,
+      peakClipping: peak.clippingCount,
+      samples: sampleCount + 1,
+      runtimeFindings,
       exportFindingTips: [],
     });
   }

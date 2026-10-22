@@ -11,13 +11,15 @@ Run `pnpm dev` and open the printed URL. Automated checks are `pnpm test` (snap 
 - Put `idle` on track 0 and `pulse` on track 1. Dots use the track colors. Clear a track.
 - Seek with the range and with Arrow Left / Arrow Right (1 ms tap, 10 ms while held).
 - Select a bone. X, Y, rotation, world scale, and local scale update while the animation plays.
-- Performance shows memory, vertices, draw calls, constraints, clippings, and blends. Toggle Selected / All.
+- Performance shows budget, frame timing and stutters, live renderer stats, memory, exact draw calls / vertices, load cost, atlas VRAM, recording and a per-skeleton list. Toggle Selected / All. See [PERFORMANCE.md](PERFORMANCE.md).
 - Zoom, reset, fit, and fit selection keep both sprites in view. Drag empty canvas to pan. Wheel zooms toward the cursor.
 
 ## Composer
 
 - Drag one sprite into the other. Edges or centers snap. Magenta guides appear. Alt drags freely. Shift locks the drag to one axis. Snap can be turned off in the toolbar.
-- Scene list: rename, hide, lock, reorder, duplicate, delete. `[` and `]` change order. Locked sprites are not dragged.
+- Outliner asset rows: rename, hide and lock (row icons), reorder, Copy, Delete. `[` and `]` change order. Locked sprites are not dragged.
+- Outliner tree: everything starts shut; clicking an asset name opens it and shuts the others. Open Bones & slots: child bones then slots, attachments under slots. A slot click highlights it through playback until clicked again; a bone click marks it on the stage and fills the inspector; an attachment click shows its details. Type buttons and the filter keep matching rows with their parents. Open branches come back when the same asset is dropped again after a reload.
+- Drag the side drawer's left edge: it resizes, keeps its width after reload and still fits a narrower window.
 - Save writes `spine-scene.json`. Open scene, choose the sample files, and the transforms come back.
 - Reload the tab: dropped files and atlas images are gone. Drop them again to continue.
 - Menu **Clear all assets**: confirm, then the stage is empty after reload. A second reload stays empty.

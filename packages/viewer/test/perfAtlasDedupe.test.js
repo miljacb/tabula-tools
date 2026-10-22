@@ -40,15 +40,26 @@ test('sumAtlasByContentKey dedupes same file across instances', () => {
   assert.equal(unique.pageCount, 1);
 });
 
-test('marginalAtlasBytesForInstance charges first z-order only once', () => {
+test('marginalAtlasBytesForInstance charges a shared GPU texture once', () => {
   const first = mockInst('a', 0, 1, 'shared.webp');
-  const second = mockInst('b', 1, 2, 'shared.webp');
+  const second = mockInst('b', 1, 1, 'shared.webp');
   const stage = [first, second];
   const mFirst = marginalAtlasBytesForInstance(first, stage);
   const mSecond = marginalAtlasBytesForInstance(second, stage);
   assert.equal(mSecond.marginalBytes, 0);
   assert.equal(mSecond.sharedPageCount, 1);
+  assert.equal(mSecond.duplicatePageCount, 0);
   assert.equal(mFirst.marginalBytes, mFirst.localBytes);
+});
+
+test('marginalAtlasBytesForInstance charges a re-uploaded file again as a duplicate', () => {
+  const first = mockInst('a', 0, 1, 'shared.webp');
+  const second = mockInst('b', 1, 2, 'shared.webp');
+  const m = marginalAtlasBytesForInstance(second, [first, second]);
+  assert.equal(m.marginalBytes, m.localBytes);
+  assert.equal(m.sharedPageCount, 0);
+  assert.equal(m.duplicatePageCount, 1);
+  assert.equal(m.duplicateBytes, m.localBytes);
 });
 
 test('sceneAtlasMemorySummary reports content vs gpu vs stacked', () => {

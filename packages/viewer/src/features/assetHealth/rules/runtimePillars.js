@@ -3,20 +3,11 @@ import { applySetupPose } from '../spinePose.js';
 
 /** @typedef {import('../types.js').HealthFinding} HealthFinding */
 
+/** Warn above 2× each ideal (fail above 2× for vertices and draw calls). */
 const IDEAL_BONES = 30;
 const IDEAL_VERTS = 300;
 const IDEAL_DRAW_CALLS = 8;
 const IDEAL_CLIPS = 2;
-
-/**
- * @param {number} value
- * @param {number} ideal
- * @param {number} scale
- */
-function logPenalty(value, ideal, scale) {
-  if (value <= ideal) return 0;
-  return Math.log2(value / ideal + 1) * scale;
-}
 
 /**
  * @param {ReturnType<typeof measureInstance>} perf
@@ -25,8 +16,7 @@ export function runtimeFindingsFromPerf(perf, label = 'setup pose') {
   /** @type {HealthFinding[]} */
   const findings = [];
 
-  const bonePenalty = logPenalty(perf.bones, IDEAL_BONES, 12);
-  if (bonePenalty > 8) {
+  if (perf.bones > IDEAL_BONES * 2) {
     findings.push({
       id: 'runtime-bones',
       level: 'warn',
@@ -48,7 +38,7 @@ export function runtimeFindingsFromPerf(perf, label = 'setup pose') {
     findings.push({
       id: 'runtime-verts',
       level: 'fail',
-      category: 'runtime.mesh',
+      category: 'runtime.vertices',
       title: 'High vertex count',
       detail: `${perf.vertexCount} vertices at ${label}.`,
     });
@@ -56,7 +46,7 @@ export function runtimeFindingsFromPerf(perf, label = 'setup pose') {
     findings.push({
       id: 'runtime-verts-warn',
       level: 'warn',
-      category: 'runtime.mesh',
+      category: 'runtime.vertices',
       title: 'Elevated vertices',
       detail: `${perf.vertexCount} vertices.`,
     });
@@ -64,7 +54,7 @@ export function runtimeFindingsFromPerf(perf, label = 'setup pose') {
     findings.push({
       id: 'runtime-verts-ok',
       level: 'pass',
-      category: 'runtime.mesh',
+      category: 'runtime.vertices',
       title: 'Mesh complexity',
       detail: `${perf.vertexCount} vertices.`,
     });
@@ -74,7 +64,7 @@ export function runtimeFindingsFromPerf(perf, label = 'setup pose') {
     findings.push({
       id: 'runtime-drawcalls',
       level: 'fail',
-      category: 'runtime.mesh',
+      category: 'runtime.drawcalls',
       title: 'Many draw calls',
       detail: `${perf.drawCalls} batches at ${label}.`,
     });
@@ -82,7 +72,7 @@ export function runtimeFindingsFromPerf(perf, label = 'setup pose') {
     findings.push({
       id: 'runtime-drawcalls-warn',
       level: 'warn',
-      category: 'runtime.mesh',
+      category: 'runtime.drawcalls',
       title: 'Elevated draw calls',
       detail: `${perf.drawCalls} batches.`,
     });
@@ -107,13 +97,13 @@ export function runtimeFindingsFromPerf(perf, label = 'setup pose') {
   }
 
   const blends = perf.blends || 'None';
-  if (blends !== 'None' && !/^Normal:/.test(blends) && blends.includes(':')) {
-    const nonNormal = blends.split(', ').filter((p) => !p.startsWith('Normal:')).length;
-    if (nonNormal > 2) {
+  if (blends !== 'None' && blends.includes(':')) {
+    const nonNormal = nonNormalBlendCount(blends);
+    if (nonNormal > 1) {
       findings.push({
         id: 'runtime-blend',
         level: 'warn',
-        category: 'runtime.blend',
+        category: 'runtime.blends',
         title: 'Blend modes',
         detail: blends,
       });
@@ -140,4 +130,13 @@ export function runtimeFindingsFromPerf(perf, label = 'setup pose') {
 export function measureSetupPose(inst) {
   applySetupPose(inst);
   return measureInstance(inst);
+}
+
+/**
+ * Distinct non-Normal blend modes in a summary; the list is "Normal: 12, Additive: 3, …" in any order.
+ * @param {string} blends
+ */
+export function nonNormalBlendCount(blends) {
+  if (!blends || blends === 'None') return 0;
+  return blends.split(', ').filter((p) => !p.startsWith('Normal:')).length;
 }

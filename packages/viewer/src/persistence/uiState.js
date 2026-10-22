@@ -8,6 +8,7 @@ const DEFAULTS = {
   timeUnit: 'seconds',
   mix: 0,
   showKeys: false,
+  selectionMarks: true,
   background: 'dark',
   backgroundColor: '#111111',
   debug: { ...DEFAULT_DEBUG_FLAGS },

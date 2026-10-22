@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test test/**/*.test.js",
-    "samples": "node scripts/make-samples.js"
+    "samples": "node scripts/make-samples.js",
+    "icons": "node scripts/make-icons.mjs"
   },
   "dependencies": {
     "pixi.js": "7.4.3",

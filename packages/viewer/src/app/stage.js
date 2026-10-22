@@ -2,6 +2,7 @@ import * as PIXI from 'pixi.js';
 import { ZOOM_MAX, ZOOM_MIN } from '../constants.js';
 import { scene } from './sceneStore.js';
 import { ensureTabulaRenderer } from '../tabula/runtime.js';
+import { setGpuTextureUnits } from '../features/perf.js';
 
 /** @type {PIXI.Application | null} */
 export let app = null;
@@ -24,6 +25,22 @@ let screenSize = null;
 
 /** @type {(dt: number) => void} */
 let onTick = () => {};
+
+/** CPU milliseconds of the last frame: skeleton updates + UI (`update`) and Pixi's render call (`render`). */
+const frameTiming = { update: 0, render: 0 };
+let renderStart = 0;
+
+/** Browser long tasks (> 50 ms of main-thread work) not yet handed to the panel. Chrome / Edge only. */
+/** @type {{ t: number, ms: number }[]} */
+const pendingLongTasks = [];
+try {
+  new PerformanceObserver((list) => {
+    for (const entry of list.getEntries()) pendingLongTasks.push({ t: entry.startTime, ms: entry.duration });
+    if (pendingLongTasks.length > 200) pendingLongTasks.splice(0, pendingLongTasks.length - 200);
+  }).observe({ type: 'longtask', buffered: false });
+} catch {
+  // Not supported: stutter markers then come from frame times only.
+}
 
 const BACKGROUNDS = { dark: 0x111111, light: 0xe8e8e8 };
 
@@ -80,8 +97,15 @@ export function initStage(parent) {
     paintScreenFrame();
     paintGrid();
     paintSelection();
+    const t0 = performance.now();
     onTick(app.ticker.deltaMS / 1000);
+    frameTiming.update = performance.now() - t0;
   });
+  const renderer = /** @type {any} */ (app.renderer);
+  renderer.on?.('prerender', () => { renderStart = performance.now(); });
+  renderer.on?.('postrender', () => { frameTiming.render = performance.now() - renderStart; });
+  const gl = renderer.gl;
+  if (gl) setGpuTextureUnits(gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS));
 }
 
 /** @param {{ width: number, height: number } | null} size */
@@ -105,6 +129,25 @@ export function readFps() {
   return app?.ticker?.FPS || 0;
 }
 
+/**
+ * Timing and renderer counters of the last frame.
+ * `renderer` is the Tabula renderer's own count (skeleton draws only; Pixi graphics such as guides are not included).
+ */
+export function readFrameStats() {
+  const tabula = /** @type {any} */ (app?.renderer)?.plugins?.tabula;
+  const managed = /** @type {any} */ (app?.renderer)?.texture?.managedTextures;
+  return {
+    deltaMs: app?.ticker?.deltaMS || 0,
+    updateMs: frameTiming.update,
+    renderMs: frameTiming.render,
+    renderer: tabula?.lastFrameStats ?? null,
+    /** Textures currently uploaded to the GPU; a rise between frames means an upload happened. */
+    gpuTextures: Array.isArray(managed) ? managed.length : null,
+    /** Long tasks since the last call (drained). */
+    longTasks: pendingLongTasks.splice(0),
+  };
+}
+
 function paintSelection() {
   if (!selection) return;
   selection.clear();
@@ -125,7 +168,8 @@ function paintSelection() {
 function paintScreenFrame() {
   if (!screenFrame || !camera) return;
   screenFrame.clear();
-  if (!screenSize) return;
+  // The frame only means something once there is an asset to place in it.
+  if (!screenSize || !scene.instances.length) return;
   const zoom = camera.scale.x || 1;
   const { width, height } = screenSize;
   screenFrame.lineStyle(1 / zoom, 0xd2ff00, 0.9);

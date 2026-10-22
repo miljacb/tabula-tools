@@ -34,14 +34,32 @@ const THRESHOLDS = {
   drawOrderKeysWarn: 20,
 };
 
+/** Bone timelines across Spine 3.x (rotate/translate/scale/shear) and 4.x (split x/y variants). */
+const BONE_TIMELINES = ['rotate', 'translate', 'translatex', 'translatey', 'scale', 'scalex', 'scaley', 'shear', 'shearx', 'sheary', 'inherit'];
+/** Slot colour timelines: 3.x color/twoColor, 4.x rgba/rgb/alpha/rgba2/rgb2. */
+const SLOT_COLOR_TIMELINES = ['color', 'twoColor', 'rgba', 'rgb', 'alpha', 'rgba2', 'rgb2'];
+/** Constraint timeline sections; each is name → keys (path/physics nest one level deeper). */
+const CONSTRAINT_SECTIONS = ['ik', 'transform', 'path', 'physics'];
+
 /**
+ * Spine JSON timelines are arrays of key objects (4.x omits `time` on the first key when it is 0).
  * @param {unknown} arr
  */
 function keyframeCount(arr) {
-  if (!Array.isArray(arr) || !arr.length) return 0;
-  const first = arr[0];
-  if (first && typeof first === 'object' && 'time' in first) return arr.length;
-  return Math.ceil(arr.length / 2);
+  return Array.isArray(arr) ? arr.length : 0;
+}
+
+/**
+ * Sums every key array found up to `depth` levels below `node`.
+ * @param {unknown} node
+ * @param {number} depth
+ */
+function nestedKeyCount(node, depth) {
+  if (Array.isArray(node)) return node.length;
+  if (!node || typeof node !== 'object' || depth <= 0) return 0;
+  let total = 0;
+  for (const child of Object.values(node)) total += nestedKeyCount(child, depth - 1);
+  return total;
 }
 
 /**
@@ -50,16 +68,21 @@ function keyframeCount(arr) {
 export function countAnimationJsonStats(animBlock) {
   let keys = 0;
   let deformKeys = 0;
+  let sequenceKeys = 0;
   let attachmentSwitches = 0;
   let drawOrderKeys = 0;
   let events = 0;
+  let constraintKeys = 0;
+  let timelines = 0;
 
   const bones = animBlock.bones;
   if (bones && typeof bones === 'object') {
     for (const bone of Object.values(bones)) {
       if (!bone || typeof bone !== 'object') continue;
-      for (const prop of ['rotate', 'translate', 'scale', 'shear']) {
-        keys += keyframeCount(/** @type {unknown[]} */ (bone[prop]));
+      for (const prop of BONE_TIMELINES) {
+        const n = keyframeCount(bone[prop]);
+        if (n) timelines += 1;
+        keys += n;
       }
     }
   }
@@ -68,26 +91,43 @@ export function countAnimationJsonStats(animBlock) {
   if (slots && typeof slots === 'object') {
     for (const slot of Object.values(slots)) {
       if (!slot || typeof slot !== 'object') continue;
-      attachmentSwitches += keyframeCount(/** @type {unknown[]} */ (slot.attachment));
-      keys += keyframeCount(/** @type {unknown[]} */ (slot.color));
-      keys += keyframeCount(/** @type {unknown[]} */ (slot.twoColor));
-    }
-  }
-
-  const deform = animBlock.deform;
-  if (deform && typeof deform === 'object') {
-    for (const slotDef of Object.values(deform)) {
-      if (!slotDef || typeof slotDef !== 'object') continue;
-      for (const mesh of Object.values(slotDef)) {
-        deformKeys += keyframeCount(/** @type {unknown[]} */ (mesh));
+      attachmentSwitches += keyframeCount(slot.attachment);
+      for (const prop of SLOT_COLOR_TIMELINES) {
+        const n = keyframeCount(slot[prop]);
+        if (n) timelines += 1;
+        keys += n;
       }
     }
   }
 
-  if (Array.isArray(animBlock.drawOrder)) drawOrderKeys = animBlock.drawOrder.length;
+  for (const section of CONSTRAINT_SECTIONS) {
+    constraintKeys += nestedKeyCount(animBlock[section], 2);
+  }
+  keys += constraintKeys;
+
+  // 3.x / 4.0: deform → skin → slot → attachment → keys.
+  deformKeys += nestedKeyCount(animBlock.deform, 3);
+  // 4.1+: attachments → skin → slot → attachment → { deform, sequence }.
+  const attachments = animBlock.attachments;
+  if (attachments && typeof attachments === 'object') {
+    for (const skin of Object.values(attachments)) {
+      if (!skin || typeof skin !== 'object') continue;
+      for (const slot of Object.values(skin)) {
+        if (!slot || typeof slot !== 'object') continue;
+        for (const att of Object.values(slot)) {
+          if (!att || typeof att !== 'object') continue;
+          deformKeys += keyframeCount(att.deform);
+          sequenceKeys += keyframeCount(att.sequence);
+        }
+      }
+    }
+  }
+
+  const drawOrder = animBlock.drawOrder ?? animBlock.draworder;
+  if (Array.isArray(drawOrder)) drawOrderKeys = drawOrder.length;
   if (Array.isArray(animBlock.events)) events = animBlock.events.length;
 
-  return { keys, deformKeys, attachmentSwitches, drawOrderKeys, events };
+  return { keys, timelines, constraintKeys, deformKeys, sequenceKeys, attachmentSwitches, drawOrderKeys, events };
 }
 
 /**
@@ -107,7 +147,7 @@ export function lintAnimationExport(animationsJson, animName, duration) {
       title: `Animation "${animName}" missing in JSON`,
       detail: 'Could not read animation block from skeleton JSON.',
     });
-    return { findings, warn: 1, fail: 0 };
+    return { findings, warn: 1, fail: 0, stats: null };
   }
 
   const stats = countAnimationJsonStats(block);

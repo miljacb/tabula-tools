@@ -136,8 +136,7 @@ input:is([type='checkbox'], [type='range']) {
   font-size: 12px;
 }
 
-.dock .panel-header,
-.dock #slots-header {
+.dock .panel-header {
   height: 28px;
   min-height: 28px;
   max-height: 28px;
@@ -150,8 +149,7 @@ input:is([type='checkbox'], [type='range']) {
   border-bottom: 0;
 }
 
-.dock .header-title,
-.dock #slots-title {
+.dock .header-title {
   color: var(--text);
   font-size: 11px;
   font-weight: 700;
@@ -161,11 +159,7 @@ input:is([type='checkbox'], [type='range']) {
   padding: 6px 8px 8px;
 }
 
-.dock #scene-panel.is-focused,
-.dock #slots-panel.is-focused,
-.dock #skins-panel.is-focused,
 .dock #animations-panel.is-focused,
-.dock #bones-panel.is-focused,
 .dock #performance-panel.is-focused {
   background: var(--panel);
   border-color: var(--line);
@@ -218,25 +212,20 @@ input:is([type='checkbox'], [type='range']) {
 .action-menu-panel button.is-active,
 #btn-pulse-toggle.is-active,
 #btn-scene-visibility.is-active,
-#btn-debug.is-active,
-#btn-inspect-asset[aria-pressed='true'] {
+#btn-debug.is-active {
   background: var(--selection);
   border-color: var(--line);
   color: var(--accent);
 }
 
-.primary-button,
-#btn-play,
-#btn-pause {
+.primary-button {
   background: var(--accent) !important;
   border-color: var(--accent) !important;
   color: var(--accent-ink) !important;
   font-weight: 700 !important;
 }
 
-.primary-button:hover:not(:disabled),
-#btn-play:hover,
-#btn-pause:hover {
+.primary-button:hover:not(:disabled) {
   background: var(--accent-hover) !important;
 }
 
@@ -273,8 +262,6 @@ button:disabled {
 }
 
 /* Selected rows: Studio outliner style. */
-.dock #slots-list .slot-name.is-selected,
-.dock #bones-list li button.is-selected,
 .dock #scene-list li.is-selected .scene-name {
   background: var(--selection);
   color: var(--text);
@@ -336,15 +323,6 @@ button:disabled {
   background: rgba(32, 32, 32, 0.6);
   color: var(--muted);
   font-weight: 400;
-}
-
-/* ── Playback controls in the stage toolbar ─────────────── */
-.stage-transport {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding-left: 10px;
-  border-left: 1px solid var(--line);
 }
 
 /* ── Dialogs ────────────────────────────────────────────── */
@@ -475,7 +453,7 @@ button:disabled {
   cursor: default !important;
 }
 
-.drawer-page :is(#scene-list, #slots-list, #bones-list, #skins-list, #animations-list),
+.drawer-page :is(#scene-list, #animations-list),
 .drawer-page .collapsible-panel > .panel-content {
   flex: 1 1 auto;
   min-height: 0;
@@ -584,20 +562,6 @@ body.is-resizing-drawer {
   color: var(--muted);
 }
 
-.bottom-drawer #animations-panel #stage-animations {
-  max-height: none;
-  margin: 0;
-  opacity: 1;
-  pointer-events: auto;
-  transition: none;
-  width: auto;
-  height: 20px;
-  padding: 0 6px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--raised);
-  font-size: 11px;
-}
 
 .bottom-drawer #animations-panel > .anim-workspace {
   display: grid !important;
@@ -1093,4 +1057,2197 @@ body.is-resizing-drawer {
   .bottom-drawer {
     width: auto;
   }
+}
+
+/* ── Outliner: one tree per asset, Studio's dense hierarchy ─── */
+#right-stack {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--drawer-width, 300px);
+  min-width: 240px;
+}
+
+.drawer-resize-x {
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  right: auto;
+  width: 5px;
+  height: auto;
+  cursor: ew-resize;
+}
+
+.drawer-resize-x::after {
+  inset: 0 2px;
+}
+
+.drawer-resize-x:hover::after,
+.drawer-resize-x:focus-visible::after,
+.drawer-resize-x.is-dragging::after {
+  inset: 0 1px;
+}
+
+body.is-resizing-drawer-x {
+  cursor: ew-resize;
+  user-select: none;
+}
+
+.drawer-page > #scene-panel {
+  flex: 1 1 auto;
+}
+
+.drawer-page #scene-list.outliner-list {
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  background: #252525;
+}
+
+/* Type filters (Studio's hierarchy filter bar). */
+.outliner-types {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 27px;
+  padding: 2px 5px;
+  border-bottom: 1px solid #4a4a4a;
+}
+
+.outliner-type {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 3px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.outliner-type:hover {
+  background: #474747;
+}
+
+.outliner-type[aria-pressed='true'] {
+  background: #535353;
+  box-shadow: inset 0 -2px #8ec8e0;
+}
+
+.outliner-type-all {
+  width: auto;
+  padding: 0 5px;
+  font-size: 11px;
+  color: #b6b6b6;
+}
+
+.outliner-type-all:disabled {
+  color: #6f6f6f;
+  background: transparent;
+  cursor: default;
+}
+
+.outliner-tools {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 27px;
+  padding: 2px 5px;
+  border-bottom: 1px solid var(--line);
+}
+
+.outliner-tools .panel-filter {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+  height: 21px;
+}
+
+.outliner-tools button {
+  height: 21px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+
+.outliner-tools button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Icons, coloured per element like Studio. */
+.outliner-icon {
+  display: block;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.outliner-glyph {
+  flex: 0 0 16px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+
+.element-skeleton { color: #c9c9c9; }
+.element-bone { color: #ebc384; }
+.element-slot { color: #71d4dd; }
+.element-region { color: #8cb9ff; }
+.element-mesh { color: #c59cff; }
+.element-clipping { color: #75deb8; }
+.element-boundingbox { color: #e1c283; }
+.element-path { color: #f3a793; }
+.element-point { color: #ed9cca; }
+.element-skin { color: #eed49a; }
+.element-event { color: #ffad77; }
+.element-constraint, .element-ik { color: #9cdc82; }
+.element-transform { color: #f2c17d; }
+.element-physics { color: #ffc077; }
+.element-order { color: #acacac; }
+
+/* Asset root row (Studio's skeleton root). */
+#scene-list .outliner-asset {
+  display: block;
+  margin: 0;
+  border-radius: 0;
+  background: #2b2b2b;
+  border-bottom: 1px solid #202020;
+  border-left: 2px solid transparent;
+}
+
+#scene-list .outliner-asset + .outliner-asset {
+  margin-top: 0;
+}
+
+#scene-list .outliner-row + .outliner-asset {
+  margin-top: 6px;
+  border-top: 1px solid #373737;
+}
+
+#scene-list .outliner-asset.is-selected {
+  background: #333;
+  border-left-color: var(--accent);
+}
+
+.outliner-asset .scene-row-main {
+  height: 25px;
+  gap: 5px;
+  padding: 0 4px 0 6px;
+}
+
+.outliner-asset .scene-health-chip {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 16px;
+  font-size: 10px;
+  border-radius: 3px;
+}
+
+.dock #scene-list .outliner-asset .scene-name,
+.dock #scene-list .outliner-asset.is-selected .scene-name {
+  flex: 1 1 auto;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #d5d5d5;
+  background: transparent;
+  box-shadow: none;
+}
+
+#scene-list .outliner-asset.is-object-hidden .scene-name {
+  color: #8a8a8a;
+}
+
+.outliner-asset .scene-actions {
+  padding: 0 4px 3px 27px;
+}
+
+.outliner-asset .scene-actions button {
+  font-size: 10px;
+}
+
+/* Counts line under an open asset. */
+#scene-list .outliner-summary {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 24px;
+  padding: 0 6px 0 10px;
+  background: #252525;
+  color: #949494;
+  font-size: 12px;
+}
+
+.outliner-summary > span {
+  margin-right: auto;
+}
+
+/* Child rows. */
+#scene-list .outliner-row {
+  --tree-surface: #313131;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  margin: 0;
+  padding: 0 6px 0 calc(var(--depth, 1) * 14px - 10px);
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 13px;
+  color: #e6e6e6;
+  background: var(--tree-surface);
+  border-left: 2px solid transparent;
+}
+
+#scene-list .outliner-row[data-depth='2'] { --tree-surface: #2d2d2d; }
+#scene-list .outliner-row[data-depth='3'] { --tree-surface: #262626; }
+#scene-list .outliner-row[data-depth='4'] { --tree-surface: #1f1f1f; }
+#scene-list .outliner-row[data-stripe='1'] { background-image: linear-gradient(#ffffff04, #ffffff04); }
+
+#scene-list .outliner-row:hover {
+  background: #414141;
+  background-image: none;
+}
+
+#scene-list .outliner-row.is-selected {
+  background: #4a4a4a;
+  background-image: none;
+  border-left-color: #9cc5ff;
+}
+
+#scene-list .outliner-row.is-in-selection {
+  background: #383838;
+}
+
+#scene-list .outliner-row.is-cursor:not(.is-selected) {
+  outline: 1px solid #a6caff55;
+  outline-offset: -1px;
+}
+
+#scene-list .outliner-row.is-group {
+  height: 24px;
+  --tree-surface: #2f2f2f;
+  border-top: 1px solid #262626;
+}
+
+/* Parent guides: one stem per ancestor level, blue on the selection's path. */
+.outliner-guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #747474;
+  pointer-events: none;
+}
+
+.outliner-guide.is-active {
+  background: #8ebbf0;
+}
+
+.outliner-twisty {
+  flex: 0 0 14px;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: #b6b6b6;
+  cursor: pointer;
+}
+
+.outliner-twisty:disabled {
+  cursor: default;
+}
+
+.outliner-twisty .outliner-icon {
+  stroke-width: 2;
+}
+
+.outliner-twisty:not(:disabled):hover {
+  color: #fff;
+}
+
+.outliner-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+#scene-list .outliner-row.is-group > .outliner-name { font-weight: 600; color: #e2e2e2; }
+#scene-list .outliner-row.is-bone > .outliner-name { font-weight: 600; color: #ededed; }
+#scene-list .outliner-row:is(.is-slot, .is-order) > .outliner-name { font-weight: 500; color: #e3e3e3; }
+#scene-list .outliner-row.is-attachment > .outliner-name { color: #cfebe4; }
+#scene-list .outliner-row:is(.is-constraint, .is-event) > .outliner-name { cursor: default; }
+#scene-list .outliner-row.is-selected > .outliner-name { color: #f9f9f9; }
+#scene-list .outliner-row.is-object-hidden:not(.is-selected) > .outliner-name { color: #b2b2b2; }
+
+#scene-list .outliner-row.is-attachment.is-current > .outliner-name::after {
+  content: ' ●';
+  color: var(--accent);
+  font-size: 8px;
+  vertical-align: middle;
+}
+
+#scene-list .outliner-row.is-skin .skin-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+#scene-list .outliner-row.is-skin .skin-item span {
+  color: #e3e3e3;
+}
+
+.outliner-meta {
+  flex: 0 1 auto;
+  max-width: 42%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: #c8c8c8;
+}
+
+#scene-list .outliner-row.is-selected .outliner-meta { color: #dedede; }
+
+/* Toggle cells at the right edge (Studio's row toggles), always shown. */
+.outliner-cell {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  padding: 3px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #888;
+  cursor: pointer;
+}
+
+.outliner-cell .outliner-icon {
+  stroke-width: 2;
+}
+
+.outliner-cell:hover {
+  background: #474747;
+  color: #eee;
+}
+
+.outliner-cell.is-on { color: #ecb571; }
+
+.drawer-page #scene-panel .bone-inspector {
+  margin: 0;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+  padding: 5px 8px;
+}
+
+.bi-head {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  margin-bottom: 3px;
+  min-width: 0;
+}
+
+.bi-caption {
+  color: var(--faint);
+  font-size: 10px;
+}
+
+.bi-name {
+  color: var(--text);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Debug overlay dialog ───────────────────────────────── */
+#debug-modal .debug-dialog {
+  width: min(340px, calc(100vw - 32px));
+  max-height: calc(100vh - 64px);
+}
+
+#debug-modal .manual-header {
+  padding: 10px 12px;
+}
+
+.debug-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.debug-scope {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+  cursor: pointer;
+}
+
+.debug-bar button {
+  height: 22px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+#debug-modal .debug-flags {
+  gap: 0;
+  padding: 4px 0 8px;
+  overflow-y: auto;
+}
+
+.debug-group h3 {
+  margin: 0;
+  padding: 8px 12px 4px;
+  color: var(--faint);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.debug-flags .debug-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 3px 12px;
+  cursor: pointer;
+}
+
+.debug-flags .debug-row:hover {
+  background: var(--raised);
+}
+
+.debug-swatch {
+  flex: 0 0 10px;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--swatch);
+  box-shadow: 0 0 0 1px #0006;
+  opacity: 0.35;
+  transition: opacity 0.12s;
+}
+
+.debug-row:has(.debug-switch:checked) .debug-swatch {
+  opacity: 1;
+}
+
+.debug-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.debug-label {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.debug-hint {
+  color: var(--faint);
+  font-size: 10px;
+}
+
+/* Switch built from the checkbox itself. */
+.debug-switch {
+  appearance: none;
+  flex: 0 0 26px;
+  width: 26px;
+  height: 14px;
+  margin: 0;
+  border-radius: 7px;
+  background: #4a4a4a;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.debug-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #cfcfcf;
+  transition: transform 0.12s;
+}
+
+.debug-switch:checked {
+  background: var(--accent);
+}
+
+.debug-switch:checked::after {
+  transform: translateX(12px);
+  background: var(--accent-ink, #111);
+}
+
+.debug-switch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Keyed-in-animation badge (Studio's key diamond). */
+#scene-list .outliner-keyed {
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+  transform: rotate(45deg);
+  background: #f2c17d;
+  border-radius: 1px;
+}
+
+/* Attachment details under the tree. */
+.drawer-page #scene-panel .attachment-inspector {
+  margin: 0;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+  padding: 5px 8px;
+}
+
+.ai-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1px 10px;
+  margin: 0;
+  font-size: 11px;
+}
+
+.ai-grid dt {
+  color: var(--faint);
+}
+
+.ai-grid dd {
+  margin: 0;
+  color: #4ec9b0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Copy / Delete sit in the asset row's line; quiet until hovered or selected. */
+#scene-list .outliner-asset .outliner-action {
+  visibility: hidden;
+}
+
+#scene-list .outliner-asset:is(:hover, .is-selected) .outliner-action,
+#scene-list .outliner-asset .outliner-action:focus-visible {
+  visibility: visible;
+}
+
+#scene-list .outliner-asset .outliner-trash:hover {
+  color: #ff8a80;
+}
+
+/* The animations drawer waits for a selected asset. */
+#bottom-drawer.is-unavailable {
+  display: none;
+}
+
+.rail-tool:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* First paint, before drawers.js runs: show the saved side tool (set on <html> by the inline script). */
+html[data-right='none'] #right-stack {
+  display: none;
+}
+
+html[data-right] #right-stack .drawer-page[data-tool]:is([data-tool='outliner'], [data-tool='performance']) {
+  display: none;
+}
+
+html[data-right='outliner'] #right-stack .drawer-page[data-tool='outliner'],
+html[data-right='performance'] #right-stack .drawer-page[data-tool='performance'] {
+  display: flex;
+}
+
+/* Attachment thumbnail beside its details. */
+.ai-body {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.ai-thumb {
+  flex: 0 0 64px;
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: repeating-conic-gradient(#2e2e2e 0 25%, #252525 0 50%) 0 0 / 10px 10px;
+}
+
+.ai-thumb.is-empty {
+  opacity: 0.4;
+}
+
+.ai-body .ai-grid {
+  flex: 1;
+  min-width: 0;
+}
+
+#scene-list .outliner-event-log {
+  color: #ffad77;
+}
+
+/* Right-click menu (Studio's object menu). */
+.outliner-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 170px;
+  padding: 4px 0;
+  background: #2b2b2b;
+  border: 1px solid #454545;
+  border-radius: 4px;
+  box-shadow: 0 6px 20px #0008;
+  font-size: 12px;
+}
+
+.outliner-menu button {
+  display: block;
+  width: 100%;
+  height: 24px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #e3e3e3;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.outliner-menu button:is(:hover, :focus-visible) {
+  background: #414141;
+  outline: none;
+}
+
+.outliner-menu-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: #3c3c3c;
+}
+
+/* ── Header: Studio layout (brand · part · actions on the right) ── */
+.app-part {
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+  color: var(--faint);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.app-header .app-header-actions {
+  margin-left: auto;
+  gap: 4px;
+}
+
+.app-header :is(.header-btn, .header-icon) {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.app-header .header-icon {
+  width: 26px;
+  padding: 0;
+  justify-content: center;
+}
+
+.app-header :is(.header-btn, .header-icon) svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.app-header #action-menu-trigger svg circle {
+  fill: currentColor;
+}
+
+.app-header :is(.header-btn, .header-icon):hover:not(:disabled),
+.app-header #action-menu-trigger[aria-expanded='true'] {
+  background: var(--raised);
+  border-color: var(--line);
+}
+
+/* Save is the one primary action, as Save / Export is in Studio. */
+.app-header .header-btn-primary {
+  border-color: var(--line);
+  background: var(--raised);
+}
+
+.app-header .header-btn-primary svg {
+  color: var(--accent);
+}
+
+.app-header .header-btn-primary:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.header-sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: var(--line);
+}
+
+.action-menu-panel {
+  min-width: 190px;
+}
+
+.action-menu-panel button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 2px;
+  font-size: 12px;
+}
+
+.action-menu-panel hr {
+  width: 100%;
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+.action-menu-panel .menu-danger {
+  color: var(--danger);
+}
+
+.action-menu-panel .menu-danger:hover {
+  background: #4a2b28;
+  color: #ff9d90;
+}
+
+.menu-kbd {
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  color: var(--faint);
+  font: 10px/14px var(--font);
+}
+
+/* ── Stage toolbar: view · snapping · inspect ───────────── */
+.stage-toolbar {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.stage-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.stage-group-end {
+  margin-left: auto;
+}
+
+.stage-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--line);
+}
+
+/* Joined buttons: zoom, snap / grid, perf scope. */
+.stage-seg {
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.stage-toolbar .stage-seg button,
+.dock .stage-seg button {
+  height: 22px;
+  margin: 0;
+  padding: 0 8px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--text);
+  font-size: 11px;
+}
+
+.stage-seg button + button {
+  border-left-width: 0 !important;
+}
+
+.stage-seg button:first-child {
+  border-radius: var(--radius) 0 0 var(--radius) !important;
+}
+
+.stage-seg button:last-child {
+  border-radius: 0 var(--radius) var(--radius) 0 !important;
+}
+
+.stage-toolbar #zoom-toolbar {
+  gap: 0;
+}
+
+.stage-toolbar #zoom-toolbar button {
+  min-width: 24px;
+  padding: 0 6px;
+}
+
+.stage-toolbar #zoom-label {
+  min-width: 48px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.stage-toolbar #zoom-label:hover {
+  color: var(--accent);
+}
+
+/* On toggles get the accent, like Studio's pressed tools. */
+:is(.stage-toolbar, .dock) .stage-toggle.is-active,
+:is(.stage-toolbar, .dock) .stage-toggle[aria-pressed='true'] {
+  background: var(--selection) !important;
+  color: var(--accent) !important;
+}
+
+.stage-toolbar :is(#btn-debug, #btn-marks) {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+}
+
+.stage-toolbar :is(#btn-debug, #btn-marks) svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.stage-toolbar .stage-health-btn {
+  height: 22px;
+}
+
+.stage-toolbar .menu-grid-size {
+  padding: 0;
+}
+
+.stage-toolbar .menu-grid-size select {
+  height: 22px;
+  background: var(--input);
+  border-radius: var(--radius);
+}
+
+.stage-toolbar .menu-grid-size select:disabled {
+  opacity: 0.45;
+}
+
+/* ── Panels: empty states and read-only tags ────────────── */
+.panel-empty {
+  margin: 2px 0 6px;
+  color: var(--faint);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.panel-empty[hidden] {
+  display: none;
+}
+
+#transform-all-panel.is-empty :is(.transform-all-actions, .transform-fields, #dimensions-display),
+#performance-panel.is-empty .panel-content > :not(.panel-empty, #perf-budget-group, #perf-frame, #perf-live, #perf-memory-group, #perf-record-group) {
+  display: none !important;
+}
+
+.dock #transform-all-panel #dimensions-display {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 6px;
+  padding: 4px 0 0;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--accent);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bi-tag {
+  margin-left: auto;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  color: var(--faint);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: help;
+}
+
+/* Slot line: pulse and outline colour of the clicked slot. */
+.slot-inspector .bi-head {
+  align-items: center;
+  margin: 0;
+}
+
+.slot-inspector .bi-actions {
+  display: inline-flex;
+  margin-left: auto;
+}
+
+.dock .slot-inspector #btn-pulse-toggle {
+  height: 20px;
+}
+
+.dock .slot-inspector #btn-mask-color {
+  width: 24px;
+  height: 20px;
+  padding: 0;
+  background: var(--raised);
+}
+
+.slot-inspector #btn-mask-color::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.dock .perf-scope {
+  margin-right: 4px;
+}
+
+.health-back-btn {
+  height: 24px;
+  padding: 0 8px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.health-back-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.rail-tool[aria-disabled='true'] {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.rail-tool[aria-disabled='true']:hover {
+  background: transparent;
+}
+
+/* The old trigger rule pads by id; the icon trigger needs none. */
+.app-header #action-menu-trigger.header-icon {
+  width: 26px;
+  padding: 0;
+  background: transparent;
+}
+
+.dock .transform-all-actions {
+  grid-template-columns: auto auto 1fr auto;
+}
+
+.dock .transform-all-actions button {
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.dock .transform-all-actions #btn-setup {
+  color: var(--accent);
+}
+
+/* ── Simple mode ────────────────────────────────────────── */
+/* The reduced layout of Studio's .tbla preview (tabla-viewer.css): stage with an animation list beside it,
+   transport and options below. Set on <html> by simpleMode.js; nothing here applies in the full viewer. */
+#btn-simple.is-active {
+  background: var(--selection);
+  color: var(--accent);
+}
+
+html:not([data-simple]) :is(.simple-side, .simple-bar, .simple-zoom) {
+  display: none !important;
+}
+
+html[data-simple] :is(
+  .app-header,
+  .tool-rail,
+  #right-stack,
+  .stage-toolbar,
+  #bottom-drawer
+) {
+  display: none !important;
+}
+
+html[data-simple] body {
+  padding: 8px;
+  gap: 8px;
+  background: var(--panel);
+}
+
+html[data-simple] .shell {
+  gap: 8px;
+}
+
+html[data-simple] .stage-card {
+  background: transparent;
+}
+
+html[data-simple] .stage-body {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+:is(.simple-side, .simple-bar, .simple-zoom) button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 3px 9px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+:is(.simple-side, .simple-bar, .simple-zoom) button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+:is(.simple-side, .simple-bar, .simple-zoom) button:not(:disabled):hover {
+  background: var(--selection);
+}
+
+:is(.simple-side, .simple-bar, .simple-zoom) svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+:is(.simple-side, .simple-bar) :is(select, input[type='search'], input[type='color']) {
+  height: 26px;
+  padding: 0 6px;
+  background: var(--input);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 12px;
+}
+
+:is(.simple-side, .simple-bar) input[type='color'] {
+  width: 34px;
+  padding: 2px;
+}
+
+:is(.simple-side, .simple-bar) label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted, var(--text));
+}
+
+.simple-zoom {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  gap: 4px;
+}
+
+.simple-zoom button {
+  min-height: 26px;
+  padding: 2px 6px;
+  background: color-mix(in srgb, var(--raised) 80%, transparent);
+}
+
+.simple-side {
+  flex: none;
+  width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+
+.simple-side label {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  font-size: 11px;
+}
+
+.simple-side [hidden] {
+  display: none !important;
+}
+
+.simple-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.simple-list button {
+  flex: none;
+  justify-content: flex-start;
+  min-height: 26px;
+  background: transparent;
+  border-color: transparent;
+  text-align: left;
+}
+
+.simple-list button span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.simple-list button small {
+  color: var(--muted, #9a9a9a);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.simple-list button[aria-pressed='true'] {
+  background: var(--selection);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.simple-list p {
+  margin: 6px;
+  color: var(--muted, #999);
+}
+
+.simple-bar {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.simple-transport {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.simple-scrub {
+  flex: 1;
+  min-width: 60px;
+}
+
+.simple-transport output {
+  min-width: 92px;
+  color: var(--muted, #c1c1c1);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.simple-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+}
+
+.simple-options [hidden] {
+  display: none !important;
+}
+
+.simple-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+
+/* ── Manual tabs ────────────────────────────────────────── */
+.manual-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 12px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+}
+
+.manual-tab {
+  height: 30px;
+  padding: 0 10px;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.manual-tab:hover {
+  color: var(--text);
+}
+
+.manual-tab[aria-selected='true'] {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── Asset health ───────────────────────────────────────── */
+/* Built from the hierarchy and dock pieces above: dock panel headers, 22px
+   outliner rows with Lucide chevrons, perf-style "Label: value" stats. */
+
+.health-dialog-wide {
+  width: min(960px, calc(100vw - 32px));
+  max-height: min(90vh, 860px);
+  display: flex;
+  flex-direction: column;
+}
+
+.health-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0;
+  background: var(--panel);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.health-detail-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.health-modal-footer button {
+  height: 24px;
+  padding: 0 8px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.health-modal-footer button:hover {
+  background: #3d3d3d;
+}
+
+.health-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 3px 8px;
+  background: var(--raised);
+  border-top: 1px solid var(--line);
+}
+
+/* Tones: accent = good, amber = middling, danger = poor. */
+.tone-good { --tone: var(--accent); }
+.tone-mid { --tone: #e0b84a; }
+.tone-bad { --tone: var(--danger); }
+.tone-none { --tone: var(--faint); }
+
+/* ── Summary ── */
+.health-summary {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.health-overall {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 72px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--tone);
+  border-radius: var(--radius);
+}
+
+.health-overall-value {
+  color: var(--tone);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.health-overall-band {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.health-summary-rows {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.health-subscore {
+  display: grid;
+  grid-template-columns: 64px 30px 140px 1fr;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.health-subscore .health-value {
+  color: var(--tone);
+  font-weight: 700;
+}
+
+.health-bar {
+  display: block;
+  height: 4px;
+  background: var(--bg);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.health-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--tone, var(--accent));
+}
+
+.health-bar-loss > span {
+  background: var(--danger);
+}
+
+.health-tally {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  color: #a8a8a8;
+  font-size: 12px;
+}
+
+.health-tally-item strong {
+  color: var(--muted);
+}
+
+.health-tally-item.is-fail strong { color: var(--danger); }
+.health-tally-item.is-warn strong { color: #e0b84a; }
+.health-tally-item.is-info strong { color: var(--text); }
+.health-tally-item.is-pass strong { color: var(--accent); }
+
+/* ── Shared text ── */
+.health-label {
+  color: var(--muted);
+}
+
+.health-value {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.health-meta {
+  min-width: 0;
+  overflow: hidden;
+  color: #c8c8c8;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.health-num {
+  color: #c8c8c8;
+  font-variant-numeric: tabular-nums;
+}
+
+.health-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+  color: #e6e6e6;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.health-name > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.health-cost {
+  margin-left: auto;
+  color: var(--danger);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.health-note,
+.health-empty,
+.health-pending {
+  margin: 0;
+  padding: 8px 12px;
+  color: #a8a8a8;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.health-empty,
+.health-pending {
+  color: var(--muted);
+}
+
+.health-scanned {
+  text-align: right;
+}
+
+/* ── Static blocks (perf-panel style) ── */
+.health-block {
+  border-bottom: 1px solid var(--line);
+}
+
+.health-block-title {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  margin: 0;
+  padding: 0 8px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.health-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 4px 20px;
+  padding: 8px 12px 10px;
+}
+
+.health-stats > div {
+  display: flex;
+  gap: 5px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.health-stats .health-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Collapsible panels (dock panel header) ── */
+.health-panel {
+  border-bottom: 1px solid var(--line);
+}
+
+.health-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 8px 0 4px;
+  background: var(--raised);
+  color: var(--text);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.health-panel[open] > .health-panel-header {
+  border-bottom: 1px solid var(--line);
+}
+
+.health-panel-title {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.health-count {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.health-panel-header::-webkit-details-marker,
+.health-group > summary::-webkit-details-marker,
+.health-anim > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Twisty: same chevrons and colours as the hierarchy. */
+.health-twisty {
+  flex: 0 0 14px;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  color: #b6b6b6;
+}
+
+.health-twisty .outliner-icon {
+  stroke-width: 2;
+}
+
+details > summary:hover .health-twisty {
+  color: #fff;
+}
+
+details > summary .health-twisty .is-open,
+details[open] > summary .health-twisty .is-closed {
+  display: none;
+}
+
+details[open] > summary .health-twisty .is-open {
+  display: block;
+}
+
+/* ── Hierarchy rows ── */
+.health-row,
+.health-finding {
+  --tree-surface: #313131;
+  background: var(--tree-surface);
+  border-left: 2px solid transparent;
+}
+
+.health-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 24px;
+  padding: 0 10px 0 calc(var(--depth, 1) * 14px - 6px);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.health-body [data-depth='1'] { --depth: 1; }
+.health-body [data-depth='2'] { --depth: 2; --tree-surface: #2d2d2d; }
+.health-body [data-depth='3'] { --depth: 3; --tree-surface: #262626; }
+
+.health-row[data-stripe='1'] {
+  background-image: linear-gradient(#ffffff04, #ffffff04);
+}
+
+.health-row .health-name {
+  flex: 0 1 200px;
+}
+
+.health-row .health-meta {
+  flex: 0 0 110px;
+}
+
+.health-row .health-bar {
+  flex: 1 1 auto;
+}
+
+.health-row.is-group {
+  height: 26px;
+  --tree-surface: #2f2f2f;
+  border-top: 1px solid #262626;
+  cursor: pointer;
+  list-style: none;
+}
+
+.health-row.is-group .health-name {
+  flex: 1 1 auto;
+  font-weight: 600;
+  color: #e2e2e2;
+}
+
+.health-row.is-group .health-meta {
+  flex: 0 0 auto;
+}
+
+.health-row.is-group:hover {
+  background: #414141;
+}
+
+.health-finding {
+  padding: 7px 12px 8px calc(var(--depth, 1) * 14px + 6px);
+  border-top: 1px solid #262626;
+}
+
+.health-finding-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 16px;
+}
+
+.health-finding-text {
+  max-width: 72ch;
+  margin: 3px 0 0 52px;
+  color: #d0d0d0;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.health-finding-text.is-help {
+  color: #a8a8a8;
+}
+
+.health-finding-text strong {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.health-level {
+  flex: 0 0 auto;
+  min-width: 44px;
+  padding: 1px 5px;
+  border-radius: 2px;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 15px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.health-level.is-fail { background: #4a2420; color: #f0a197; }
+.health-level.is-warn { background: #463a1c; color: #ecc96a; }
+.health-level.is-info { background: var(--raised); color: var(--text); }
+.health-level.is-pass { background: var(--selection); color: var(--accent); }
+
+.health-tags {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.health-tags .health-level {
+  min-width: 0;
+  text-transform: none;
+}
+
+/* Score chip: the outliner chip's size, toned by score. */
+.health-chip {
+  display: inline-block;
+  width: 32px;
+  height: 18px;
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--tone);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--tone);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.health-score-text {
+  color: var(--tone);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Column grids (skeleton list, animations) ── */
+.health-grid-head,
+.health-grid-row {
+  display: grid;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px 0 6px;
+}
+
+.health-list-grid .health-grid-head,
+.health-list-grid .health-grid-row {
+  grid-template-columns: 34px minmax(140px, 1fr) 56px 56px minmax(90px, 0.6fr) 130px 120px;
+}
+
+.health-anim-grid .health-grid-head,
+.health-anim-grid .health-grid-row {
+  grid-template-columns: 14px minmax(120px, 1fr) 52px 50px 56px 64px 52px 120px;
+}
+
+.health-grid-head {
+  height: 26px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.health-grid-head [data-tip] {
+  cursor: help;
+}
+
+.health-grid-row {
+  height: 26px;
+  background: #313131;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+  list-style: none;
+  white-space: nowrap;
+}
+
+.health-grid-row[data-stripe='1'] {
+  background-image: linear-gradient(#ffffff04, #ffffff04);
+}
+
+.health-grid-row:hover {
+  background: #414141;
+  background-image: none;
+}
+
+.health-anim[open] > .health-grid-row {
+  background: #4a4a4a;
+  background-image: none;
+  border-left-color: #9cc5ff;
+}
+
+.health-anim-body {
+  background: #262626;
+  border-bottom: 1px solid #202020;
+}
+
+.health-anim-body .health-stats {
+  padding-left: 24px;
+}
+
+.health-anim-body .health-note,
+.health-anim-body .health-empty {
+  padding-left: 24px;
+}
+
+.health-grid-row .health-name .outliner-icon {
+  flex: 0 0 auto;
+  color: #b6b6b6;
+}
+
+@media (max-width: 720px) {
+  .health-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .health-subscore {
+    grid-template-columns: 56px 28px 1fr;
+  }
+
+  .health-subscore .health-meta {
+    grid-column: 1 / -1;
+    white-space: normal;
+  }
+
+  .health-list-grid .health-grid-head,
+  .health-list-grid .health-grid-row {
+    grid-template-columns: 34px minmax(100px, 1fr) 56px 120px;
+  }
+
+  .health-list-grid :is(.health-grid-head, .health-grid-row) > :nth-child(n + 4):nth-child(-n + 6),
+  .health-anim-grid :is(.health-grid-head, .health-grid-row) > :nth-child(n + 5):nth-child(-n + 7) {
+    display: none;
+  }
+
+  .health-anim-grid .health-grid-head,
+  .health-anim-grid .health-grid-row {
+    grid-template-columns: 14px minmax(100px, 1fr) 52px 50px 120px;
+  }
+}
+
+.health-overall[data-tip],
+.health-subscore[data-tip],
+.health-chip[data-tip],
+.health-label[data-tip] {
+  cursor: help;
+}
+
+.health-label[data-tip] {
+  text-decoration: underline dotted #ffffff40;
+  text-underline-offset: 2px;
+}
+
+/* Hierarchy health chip: the report's tones instead of the red → green hue. */
+.scene-health-chip[data-tone] {
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--tone);
+  background: var(--bg);
+  color: var(--tone);
+}
+
+.scene-health-chip[data-tone='good'] { --tone: var(--accent); }
+.scene-health-chip[data-tone='mid'] { --tone: #e0b84a; }
+.scene-health-chip[data-tone='bad'] { --tone: var(--danger); }
+
+.health-budget {
+  margin: 0;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+  color: #a8a8a8;
+  font-size: 12px;
+}
+
+.health-budget .is-near { color: #e0b84a; }
+.health-budget .is-over { color: var(--danger); }
+.health-budget .is-ok { color: var(--accent); }
+
+/* ── Performance panel ──────────────────────────────────── */
+/* Grouped sections (Budget, Frame, Stage, Memory, scope, Atlas, Recording, Per skeleton). */
+
+.dock #performance-panel > .panel-content {
+  max-height: none;
+  padding: 0 !important;
+}
+
+#performance-panel.is-empty .panel-content > .panel-empty {
+  display: block !important;
+  margin: 0;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.perf-group {
+  padding: 0 10px 8px;
+  border-bottom: 1px solid var(--line);
+  line-height: 1.6;
+}
+
+.perf-group[hidden] {
+  display: none;
+}
+
+.perf-group:last-child {
+  border-bottom: 0;
+}
+
+.perf-group-title {
+  display: flex;
+  align-items: center;
+  height: 24px;
+  margin: 0 -10px 4px;
+  padding: 0 10px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.perf-group .perf-label {
+  color: var(--muted);
+}
+
+.perf-group [data-tip] > .perf-label {
+  text-decoration: underline dotted #ffffff40;
+  text-underline-offset: 2px;
+  cursor: help;
+}
+
+.perf-sub {
+  margin-left: 4px;
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.perf-group .perf-hint {
+  margin: 2px 0 4px;
+  color: #a8a8a8;
+}
+
+.perf-fps-block {
+  margin-bottom: 4px;
+}
+
+/* Texture units */
+.perf-units {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 2px 0;
+}
+
+.perf-units select {
+  height: 20px;
+  padding: 0 4px;
+  background: var(--input);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  color: var(--text);
+  font-size: 11px;
+}
+
+.perf-units select:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* Per-skeleton list: hierarchy rows. */
+.perf-breakdown {
+  margin: 0 -10px;
+}
+
+.perf-bd-head,
+.perf-bd-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px 52px 40px 60px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+}
+
+.perf-bd-head {
+  height: 22px;
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.perf-bd-head > :not(:first-child),
+.perf-bd-row > :not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.perf-bd-row {
+  width: 100%;
+  height: 22px;
+  margin: 0;
+  background: #313131;
+  border: 0;
+  border-left: 2px solid transparent;
+  border-radius: 0;
+  color: #e6e6e6;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.perf-bd-row:nth-of-type(even) {
+  background-image: linear-gradient(#ffffff04, #ffffff04);
+}
+
+.perf-bd-row:hover {
+  background: #414141;
+}
+
+.perf-bd-row.is-selected {
+  background: #4a4a4a;
+  border-left-color: #9cc5ff;
+}
+
+.perf-bd-row.is-hidden {
+  color: #8a8a8a;
+}
+
+.perf-bd-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.perf-breakdown .perf-hint {
+  padding: 4px 10px 0;
+}
+
+[hidden]#perf-heap-row,
+[hidden]#perf-page-mem-row,
+.perf-measure[hidden] {
+  display: none;
+}
+
+.perf-measure {
+  height: 22px;
+  margin: 4px 0 2px;
+  padding: 0 8px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.perf-measure:hover:not(:disabled) {
+  background: #3d3d3d;
+}
+
+/* Budget */
+.perf-budget-custom {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+  margin: 4px 0;
+}
+
+.perf-budget-custom[hidden] {
+  display: none;
+}
+
+.perf-budget-custom label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.perf-budget-custom input {
+  height: 20px;
+  padding: 0 4px;
+  background: var(--input);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  color: var(--text);
+  font-size: 11px;
+}
+
+.perf-budget-custom input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.perf-budget-row {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.perf-budget-bar {
+  display: block;
+  height: 4px;
+  background: var(--bg);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.perf-budget-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.perf-budget-value {
+  color: var(--accent);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.perf-budget-row.is-near .perf-budget-bar > span { background: #e0b84a; }
+.perf-budget-row.is-near .perf-budget-value { color: #e0b84a; }
+.perf-budget-row.is-over .perf-budget-bar > span { background: var(--danger); }
+.perf-budget-row.is-over .perf-budget-value { color: var(--danger); }
+
+.dock .perf-value.is-near { color: #e0b84a; }
+.dock .perf-value.is-over { color: var(--danger); }
+
+/* Stutters */
+#perf-stutter-list {
+  white-space: pre-line;
+  color: #e0a39a;
+}
+
+[hidden]#perf-skel-cpu-row,
+[hidden]#perf-load-row {
+  display: none;
+}
+
+/* Recording */
+.perf-record-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.perf-measure.is-recording {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.perf-measure:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
