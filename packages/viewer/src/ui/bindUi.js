@@ -1798,6 +1798,17 @@ function toggleLocked(inst) {
 }
 
 /**
+ * Global stage Play skips a skeleton with this off; choosing an animation still plays it.
+ * @param {import('../app/sceneStore.js').SpineInstance} inst
+ */
+function toggleStageAnimations(inst) {
+  inst.stageAnimations = inst.stageAnimations === false;
+  if (!inst.stageAnimations) inst.playing = false;
+  else if (scene.playing) inst.playing = true;
+  emit();
+}
+
+/**
  * Copy / Delete on the asset row, in the same line as eye and lock; shown on hover and on the selected asset.
  * @param {'copy' | 'trash'} glyph
  * @param {string} tip
@@ -2105,6 +2116,13 @@ function bindTimelineToolbar() {
   document.getElementById('tl-end')?.addEventListener('click', () => goToEdge(true));
   document.getElementById('tl-prev')?.addEventListener('click', () => stepFrame(-1));
   document.getElementById('tl-next')?.addEventListener('click', () => stepFrame(1));
+  document.getElementById('tl-global')?.addEventListener('click', () => {
+    if (selectionCount() > 1) runOnSceneSelection(toggleStageAnimations);
+    else {
+      const inst = selected();
+      if (inst) toggleStageAnimations(inst);
+    }
+  });
   document.getElementById('tl-play')?.addEventListener('click', () => {
     const inst = timelineInstance();
     if (!inst) return;
@@ -2171,6 +2189,17 @@ function syncTimelineToolbar() {
     const playing = ready && !!inst?.playing;
     play.classList.toggle('is-playing', playing);
     play.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+  }
+  const global = /** @type {HTMLButtonElement | null} */ (document.getElementById('tl-global'));
+  if (global) {
+    const target = selected();
+    const on = !target || target.stageAnimations !== false;
+    global.disabled = !target;
+    global.setAttribute('aria-pressed', String(on));
+    global.classList.toggle('is-off', !on);
+    global.dataset.tip = on
+      ? `Global animations on: stage Play includes this skeleton. ${shortcutLabel('A', true)}`
+      : `Global animations off: stage Play skips this skeleton; choosing an animation still plays it. ${shortcutLabel('A', true)}`;
   }
 }
 
@@ -2970,6 +2999,12 @@ function onKeyDown(event) {
       if (!selectedInstances().length) return;
       event.preventDefault();
       runOnSceneSelection(toggleLocked);
+      return;
+    }
+    if (event.code === 'KeyA' && event.shiftKey) {
+      if (!selectedInstances().length) return;
+      event.preventDefault();
+      runOnSceneSelection(toggleStageAnimations);
       return;
     }
   }

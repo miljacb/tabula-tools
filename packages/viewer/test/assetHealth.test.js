@@ -140,6 +140,15 @@ test('runtimeFindingsFromPerf flags blend modes even when Normal is listed first
   assert.ok(findings.some((f) => f.id === 'runtime-blend'));
 });
 
+test('runtimeFindingsFromPerf does not flag Additive, which batches with Normal', async () => {
+  const { runtimeFindingsFromPerf } = await import('../src/features/assetHealth/rules/runtimePillars.js');
+  const findings = runtimeFindingsFromPerf({
+    bones: 10, vertexCount: 100, drawCalls: 2, clippingCount: 0, constraints: 0,
+    blends: 'Normal: 10, Additive: 2',
+  });
+  assert.ok(!findings.some((f) => f.id === 'runtime-blend'));
+});
+
 test('runtimeFindingsFromPerf scores vertices and draw calls as separate categories', async () => {
   const { runtimeFindingsFromPerf } = await import('../src/features/assetHealth/rules/runtimePillars.js');
   const findings = runtimeFindingsFromPerf({

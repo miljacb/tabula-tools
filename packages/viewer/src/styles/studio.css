@@ -3251,3 +3251,8 @@ details[open] > summary .health-twisty .is-open {
   opacity: 0.45;
   cursor: default;
 }
+
+.tl-icon.is-off {
+  color: var(--text-dim, #777) !important;
+  opacity: 0.55;
+}

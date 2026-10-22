@@ -56,15 +56,15 @@ const BY_ID = {
   },
   'runtime-drawcalls-warn': {
     what: 'Draw call count is elevated.',
-    fix: 'Reorder slots to batch by texture; combine small regions; limit additive/screen layers.',
+    fix: 'Reorder slots to batch by texture; combine small regions; limit Multiply/Screen layers (Additive batches with Normal).',
   },
   'runtime-clip': {
     what: 'Clipping attachments are expensive on GPU.',
     fix: 'Use clipping sparingly; prefer masked art in the atlas; reduce clipping mesh complexity.',
   },
   'runtime-blend': {
-    what: 'Multiple blend modes break batching.',
-    fix: 'Standardize on Normal where possible; batch additive effects on dedicated atlases.',
+    what: 'Multiply or Screen slots need their own blend state, so they break batching. Normal and Additive share one.',
+    fix: 'Use Normal or Additive where the look allows; keep Multiply/Screen slots together in draw order.',
   },
   'runtime-constraints': {
     what: 'IK, path, transform, or physics constraints add CPU cost.',
@@ -116,8 +116,8 @@ const BY_CATEGORY = {
     fix: 'Pre-cut art in your art or animation tool instead of live clipping where possible.',
   },
   'runtime.blends': {
-    what: 'Non-normal blend modes prevent batching.',
-    fix: 'Isolate additive/screen slots and atlas pages.',
+    what: 'Multiply and Screen blend modes prevent batching; Additive batches with Normal.',
+    fix: 'Keep Multiply/Screen slots together in draw order, or replace them with Normal/Additive.',
   },
   'runtime.constraints': {
     what: 'Constraints solve each frame after bones.',

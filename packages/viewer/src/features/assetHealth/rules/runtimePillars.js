@@ -99,7 +99,7 @@ export function runtimeFindingsFromPerf(perf, label = 'setup pose') {
   const blends = perf.blends || 'None';
   if (blends !== 'None' && blends.includes(':')) {
     const nonNormal = nonNormalBlendCount(blends);
-    if (nonNormal > 1) {
+    if (nonNormal > 0) {
       findings.push({
         id: 'runtime-blend',
         level: 'warn',
@@ -133,10 +133,11 @@ export function measureSetupPose(inst) {
 }
 
 /**
- * Distinct non-Normal blend modes in a summary; the list is "Normal: 12, Additive: 3, …" in any order.
+ * Distinct blend modes in a summary that need their own blend state ("Normal: 12, Additive: 3, …" in any order).
+ * Matches tabula-pixi's BLEND_GROUP: Normal and Additive share one state, Multiply and Screen each need their own.
  * @param {string} blends
  */
 export function nonNormalBlendCount(blends) {
   if (!blends || blends === 'None') return 0;
-  return blends.split(', ').filter((p) => !p.startsWith('Normal:')).length;
+  return blends.split(', ').filter((p) => !p.startsWith('Normal:') && !p.startsWith('Additive:')).length;
 }

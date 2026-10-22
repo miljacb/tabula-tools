@@ -34,7 +34,7 @@ For each animation, the scanner steps track 0 through time (20 Hz, capped at 80 
 
 Draw calls, vertices and triangles are counted exactly as tabula-pixi's renderer batches (its `SkeletonRenderer` walk into a `BatchCounter`): up to 8 atlas pages per call (or fewer, from the Performance panel's Texture units), Normal and Additive in one blend state, Multiply and Screen in their own; inactive bones and transparent slots draw nothing; clipped meshes count their clipped vertices.
 
-Thresholds: bones warn above 60; vertices warn above 300, fail above 600; draw calls warn above 8, fail above 16; clipping warns above 2 masks; blend modes warn with two or more non-Normal modes. Each runtime metric is its own penalty category (warn −5, fail −15, at most −30 per category).
+Thresholds: bones warn above 60; vertices warn above 300, fail above 600; draw calls warn above 8, fail above 16; clipping warns above 2 masks; blend modes warn when Multiply or Screen is used (Additive shares Normal's blend state and is not penalised). Each runtime metric is its own penalty category (warn −5, fail −15, at most −30 per category).
 
 Export key counts read Spine 3.x and 4.x JSON: split bone timelines (`translatex`…), slot `rgba`/`rgb`/`alpha`, IK/transform/path/physics timelines, and deform keys in both the 4.0 `deform` and 4.1+ `attachments` layouts.
 

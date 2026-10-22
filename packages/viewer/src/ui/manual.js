@@ -148,6 +148,7 @@ function manualTabs() {
         row(chord('C'), 'Duplicate selected skeletons'),
         row(chord('H'), 'Hide or show selected skeletons'),
         row(modShift('L'), 'Lock or unlock selected skeletons'),
+        row(modShift('A'), 'Include or skip selected skeletons in global Play'),
         row('Delete / Backspace', 'Delete selected skeletons'),
         row('[ ]', 'Send selection backward / forward'),
         row('S', 'Flip the selected skeleton between its current and previous skin'),
