@@ -747,7 +747,7 @@ export async function loadSamples() {
   const files = [];
   for (const name of names) {
     for (const ext of ['json', 'atlas', 'png']) {
-      const response = await fetch(`/samples/${name}.${ext}`);
+      const response = await fetch(`${import.meta.env.BASE_URL}samples/${name}.${ext}`);
       if (!response.ok) throw new Error(`Missing sample ${name}.${ext}`);
       const blob = await response.blob();
       files.push(new File([blob], `${name}.${ext}`, { type: blob.type }));

@@ -16,6 +16,8 @@
   "exclude": [
     "node_modules",
     "dist",
-    "dist-app"
+    "dist-app",
+    "app/web/shims/png.ts",
+    "app/web/shims/sharp.ts"
   ]
 }

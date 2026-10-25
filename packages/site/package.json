@@ -1,0 +1,13 @@
+{
+  "name": "tabula-site",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Tools homepage; static, copied as-is into public/ by scripts/build-web.mjs",
+  "scripts": {
+    "dev": "node ../../scripts/build-docs.mjs && vite"
+  },
+  "devDependencies": {
+    "vite": "^6.3.5"
+  }
+}

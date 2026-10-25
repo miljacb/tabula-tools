@@ -1,19 +1,43 @@
 {
   "appId": "com.tabula.app",
-  "productName": "Tabula",
-  "directories": { "output": "dist-desktop" },
+  "productName": "Tabula Tools",
+  "directories": {
+    "output": "dist-desktop"
+  },
   "files": [
     "desktop/main.mjs",
     "desktop/preload.cjs",
+    "desktop/icons/**/*",
     "dist/**/*",
     "!dist/**/*.d.ts",
     "!dist/**/*.map",
     "dist-app/**/*",
+    "dist-web/**/*",
+    "!dist-web/exporter/**",
     "package.json"
   ],
-  "extraMetadata": { "main": "desktop/main.mjs" },
-  "asarUnpack": ["**/node_modules/sharp/**", "**/node_modules/@img/**"],
-  "mac": { "target": ["dmg"], "category": "public.app-category.developer-tools" },
-  "win": { "target": ["nsis"] },
-  "linux": { "target": ["AppImage"] }
+  "extraMetadata": {
+    "main": "desktop/main.mjs"
+  },
+  "asarUnpack": [
+    "**/node_modules/sharp/**",
+    "**/node_modules/@img/**"
+  ],
+  "mac": {
+    "target": [
+      "dmg"
+    ],
+    "category": "public.app-category.developer-tools"
+  },
+  "win": {
+    "target": [
+      "nsis"
+    ]
+  },
+  "linux": {
+    "target": [
+      "AppImage"
+    ]
+  },
+  "icon": "desktop/icons/icon.png"
 }

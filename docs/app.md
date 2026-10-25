@@ -20,13 +20,15 @@ pages), compressed ones, or a mix, with the same code.
 
 ## Start
 
-**Desktop app** (no Node needed by its users): open the app, then use
-**Open folder…**, drop a folder onto the window, or pick a recent
-project. File → Open Folder… (Cmd/Ctrl+O) switches projects.
+**Desktop app** (no Node needed by its users): it opens on the Tabula
+Tools homepage; the exporter is at `/exporter/` (its card there), the
+viewer at `/viewer/`. In the exporter use **Open folder…**, drop a folder
+onto the window, or pick a recent project. File → Open Folder… (Cmd/Ctrl+O)
+opens or switches projects from anywhere and goes to the exporter.
 
 ```sh
 # in the tabula-tools folder (next to tabula-pixi; build tabula-pixi first)
-pnpm desktop                # run it from the repo (builds first); add a folder to open it
+pnpm desktop                # run it from the repo (builds first); add a folder to open it in the exporter
 pnpm desktop:dist           # installers in dist-desktop/: .dmg (macOS), .exe (Windows), AppImage (Linux)
 ```
 
@@ -35,10 +37,14 @@ yet: macOS asks to confirm it on first open (right-click → Open), Windows
 shows SmartScreen. The KTX2 encoder and its cache go to the app's data
 folder; the recent projects too.
 
+**Website** (the tools site at `/exporter/`): pick or drop the project folder; it is read in the
+page (nothing is uploaded), settings last for the session, and the export downloads as a zip of
+`tabula-export/` and `tabula.config.json`. KTX2 needs the desktop app. See `app/web/README.md`.
+
 **Browser**, from a terminal:
 
 ```sh
-npx tabula app path/to/assets          # opens http://127.0.0.1:43300/
+npx tabula app path/to/assets          # opens http://127.0.0.1:43300/ (exporter: /exporter/)
 npx tabula app                         # start screen: recent projects, or type a folder path
 npx tabula app path/to/assets -o dist/assets --port 8080 --no-open
 ```
@@ -46,9 +52,11 @@ npx tabula app path/to/assets -o dist/assets --port 8080 --no-open
 A browser cannot hand a page the path of a dropped folder, so there the
 folder is given on the command line or typed in. The server listens on
 127.0.0.1 only. Repo development, in the tabula-tools folder: `pnpm app`
-(Vite, on `TABULA_PROJECT` or `tests/assets/`; exports of the test assets go
-to `node_modules/.cache/tabula-app-export`), `pnpm app:build` builds the
-page `tabula app` serves (`dist-app/`).
+(Vite at http://localhost:43301/exporter/, on `TABULA_PROJECT` or
+`tests/assets/`; exports of the test assets go to
+`node_modules/.cache/tabula-app-export`). `tabula app` serves the built
+pages: `pnpm app:build` (the exporter, `dist-app/`) and `pnpm build:web`
+(the homepage and viewer, `dist-web/`).
 
 ## Workflow
 

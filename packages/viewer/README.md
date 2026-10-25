@@ -37,7 +37,7 @@ pnpm build
 
 ## Deploy
 
-`netlify.toml` publishes `dist/`. No server is required.
+Deployed under `/viewer/` on the tools site: the root `netlify.toml` runs `pnpm build:web`. No server is required.
 
 Dropped atlas images are not kept after **reload** or closing the tab. Drop the files again to continue. **Menu → Clear all assets** also removes UI prefs, as if the app had never been opened here.
 

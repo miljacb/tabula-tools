@@ -1,0 +1,17 @@
+[build]
+  command = "pnpm install --frozen-lockfile && pnpm build:web"
+  publish = "dist-web"
+
+# The viewer is a single-page app under /viewer/.
+[[redirects]]
+  from = "/viewer/*"
+  to = "/viewer/index.html"
+  status = 200
+
+# Cross-origin isolation for the viewer: lets its Performance panel measure page memory
+# (performance.measureUserAgentSpecificMemory). Same headers as the Vite dev/preview servers.
+[[headers]]
+  for = "/viewer/*"
+  [headers.values]
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Embedder-Policy = "require-corp"

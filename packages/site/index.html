@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tabula Tools</title>
+  <meta name="description" content="Tools for Tabula skeletons and scenes: viewer, exporter, and more." />
+  <meta name="theme-color" content="#111112" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Tabula Tools" />
+  <meta property="og:title" content="Tabula Tools" />
+  <meta property="og:description" content="Tools for Tabula skeletons and scenes: viewer, exporter, and more." />
+  <meta property="og:image" content="/og.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <!-- Tabula Studio page faces: Chakra Petch (display), Space Grotesk (copy). -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600&family=Space+Grotesk:wght@400;500;600&display=swap" />
+  <style>
+    /* Rules below are taken from the Tabula Studio page (site.css) so the two read as one site. */
+    :root {
+      --ink: #111112;
+      --paper: #f4f4ed;
+      --copy: #c8cbbd;
+      --muted: #b4b8a5;
+      --line: #535450;
+      --panel: #282c20;
+      --lime: #d2ff00;
+      --display: "Chakra Petch", "Arial Black", sans-serif;
+      --sans: "Space Grotesk", Arial, sans-serif;
+      --mono: Consolas, "Courier New", monospace;
+      color-scheme: dark;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--ink); color: var(--paper); font: 17px/1.7 var(--sans); -webkit-font-smoothing: antialiased; }
+    p, h1, h2, h3 { margin-top: 0; }
+    a { color: inherit; text-decoration: none; }
+    :is(a, button):focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; }
+    ::selection { background: #d2ff0040; }
+
+    .arrow { display: inline-block; width: .9em; height: .9em; flex: none; vertical-align: -.08em; }
+
+    .skip { position: fixed; top: -80px; left: 20px; padding: 12px 20px; background: var(--paper); color: #1b1f17; z-index: 100; }
+    .skip:focus { top: 15px; }
+
+    /* ── Header ─────────────────────────────────────────────── */
+    .site-header { height: 100px; max-width: 1500px; margin: auto; padding-inline: 4.2%; display: flex; justify-content: space-between; align-items: center; gap: 30px; position: relative; z-index: 10; border-bottom: 1px solid #282c20; background: var(--ink); }
+    .brand { display: inline-flex; align-items: center; gap: 12px; }
+    .brand img { width: 50px; height: auto; }
+    .site-header nav { display: flex; gap: 32px; font-size: 14px; }
+    .site-header nav a { color: var(--copy); }
+    .site-header nav a:hover { color: var(--paper); }
+
+    .button { display: inline-flex; align-items: center; justify-content: space-between; gap: 30px; padding: 13px 20px; min-height: 51px; background: var(--lime); border: 1px solid var(--lime); color: #202418; font-size: 15px; font-weight: 600; white-space: nowrap; transition: background .2s, transform .2s; }
+    .button:hover { background: #e4ff70; border-color: #e4ff70; transform: translateY(-2px); }
+    .button .arrow { width: 16px; height: 16px; }
+    .header-cta { font-size: 14px; min-height: 46px; padding: 11px 18px; }
+
+    .eyebrow, .micro { font-family: var(--mono); font-size: 11px; letter-spacing: 1px; font-weight: 400; line-height: 1.6; text-transform: uppercase; }
+    .eyebrow { display: flex; gap: 10px; align-items: center; }
+    .live-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; flex: none; background: var(--lime); box-shadow: 0 0 12px #d2ff0040; }
+
+    /* ── Hero ───────────────────────────────────────────────── */
+    .hero { position: relative; isolation: isolate; overflow: hidden; display: flex; flex-direction: column; max-width: 1680px; min-height: 800px; margin: auto; padding: 35px 4.2% 30px; background: radial-gradient(ellipse at 67% 58%, #3b43202e, transparent 55%), var(--ink); }
+    .hero-bg { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+    .hero-bg svg { display: block; width: 100%; height: 100%; opacity: .4; mask-image: linear-gradient(90deg, transparent, #000 25%, #000 85%, transparent); }
+    .hero-grid { position: absolute; inset: 0; z-index: -1; background-image: linear-gradient(#f4f4ed06 1px, transparent 1px), linear-gradient(90deg, #f4f4ed06 1px, transparent 1px); background-size: 80px 80px; mask-image: radial-gradient(ellipse, #111112, transparent 70%); }
+
+    .hero-topline { display: flex; justify-content: space-between; align-items: center; gap: 25px; }
+    .hero-topline .eyebrow { color: #dde1d2; margin: 0; font-size: 10px; }
+    .hero-topline .micro { font-size: 9px; color: var(--muted); }
+
+    .hero h1 { max-width: 1250px; margin: 64px 0 42px; color: var(--paper); font: 600 clamp(55px, 6.4vw, 100px)/1.03 var(--display); letter-spacing: -3px; text-transform: uppercase; }
+    .hero h1 em { font-style: normal; color: var(--lime); }
+
+    .hero-description { display: flex; align-items: flex-end; justify-content: space-between; gap: 60px; margin: 0 0 45px; }
+    .hero-copy { max-width: 630px; }
+    .hero-copy > p:first-child { font-size: 21px; line-height: 1.4; color: var(--paper); margin: 0 0 16px; }
+    .hero-copy .subcopy { font-size: 16px; line-height: 1.8; color: var(--muted); margin: 0; max-width: 610px; }
+    .hero-roadmap { display: block; margin-top: 20px; font: 10px/1.9 var(--mono); letter-spacing: .25px; color: var(--muted); text-transform: uppercase; }
+
+    .hero-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 17px; flex: none; padding-bottom: 5px; }
+    .hero-actions .button { font-size: 15px; gap: 38px; padding: 15px 21px; min-height: 54px; }
+    .hero-link { color: #dde1d2; font-size: 14px; }
+    .hero-link:hover { color: var(--lime); }
+
+    .hero-bottom { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; margin-top: auto; padding-top: 24px; border-top: 1px solid #3b3c38; color: var(--muted); }
+    .hero-bottom .micro { font-size: 9px; line-height: 1.7; }
+    .hero-bottom > .micro:last-child { text-align: right; }
+    .scroll-cue { display: flex; align-items: center; gap: 13px; font: 10px var(--mono); letter-spacing: 1px; color: #dde1d2; }
+    .scroll-cue i { display: grid; place-items: center; width: 30px; height: 36px; border: 1px solid #717e39; color: var(--lime); font-style: normal; }
+    .scroll-cue .arrow { width: 14px; height: 14px; }
+
+    /* ── Tools (Studio page feature-tile) ───────────────────── */
+    .tools-section { max-width: 1680px; margin: auto; padding: 90px 4.2% 110px; background: var(--panel); }
+    .section-head { display: flex; align-items: flex-start; gap: 22px; margin-bottom: 50px; }
+    .chapter-folder { flex: none; display: grid; place-items: center; width: 72px; height: 72px; background: var(--lime); color: #13170c; font: 600 38px var(--display); clip-path: polygon(0 0, 80% 0, 100% 20%, 100% 100%, 0 100%); box-shadow: inset 2px 0 #f1ff8e, inset 0 2px #f1ff8e, inset -2px -2px #7b961b; }
+    .section-head .eyebrow { color: var(--muted); font-size: 10px; margin: 0 0 8px; }
+    .section-head h2 { margin: 0; font: 600 clamp(36px, 4.2vw, 61px)/1.05 var(--display); letter-spacing: -1.5px; text-transform: uppercase; }
+    .section-head h2 em { display: block; font-style: normal; color: var(--lime); }
+
+    .tools { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 30px; }
+
+    .tool { position: relative; display: flex; flex-direction: column; min-height: 500px; padding: 25px 30px 22px; background: #11150e; color: #eef4e5; border: 1px solid #788765; transition: transform .2s, border-color .2s; }
+    a.tool:hover { transform: translateY(-4px); border-color: var(--lime); }
+    .tool.lime { background: var(--lime); color: #1b230d; border-color: var(--lime); outline: 1px solid transparent; outline-offset: 0; transition: transform .2s, outline-color .2s, outline-offset .2s; }
+    a.tool.lime:hover { outline-color: var(--lime); outline-offset: 6px; }
+    .tool-foot .arrow { transition: transform .2s; }
+    a.tool:hover .tool-foot .arrow { transform: translate(3px, -3px); }
+    .tool.planned { background: transparent; border-style: dashed; border-color: var(--line); }
+
+    .tool-top { display: flex; align-items: center; justify-content: space-between; gap: 20px; font: 9px/1.6 var(--mono); letter-spacing: .6px; text-transform: uppercase; opacity: .75; }
+    .tool-top b { font-weight: 400; }
+
+    .tool-icon { display: block; width: 165px; height: 113px; margin: 18px 0 13px; color: var(--lime); }
+    .tool-icon .accent { stroke: #f0ffe0; }
+    .lime .tool-icon { color: #26330e; }
+    .lime .tool-icon .accent { stroke: #506d17; }
+    .planned .tool-icon { color: var(--muted); }
+    .planned .tool-icon .accent { stroke: var(--line); }
+
+    .tool h3 { margin: 0 0 18px; font: 600 clamp(27px, 2.45vw, 36px)/1.08 var(--display); letter-spacing: -.7px; }
+    .tool h3 span { display: block; color: var(--lime); }
+    .lime h3 span { color: #354d10; }
+    .planned h3 span { color: var(--muted); }
+
+    .tool p { margin: 0 0 20px; max-width: 420px; color: #b6c4a6; font-size: 15px; line-height: 1.6; }
+    .lime p { color: #465332; }
+
+    .tool-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: auto; padding-top: 14px; border-top: 1px solid #71865c70; color: #a7ba90; font: 9px/1.7 var(--mono); letter-spacing: .5px; text-transform: uppercase; }
+    .lime .tool-foot { color: #43552c; border-color: #607f3370; }
+    .tool-foot .arrow { width: 20px; height: 20px; }
+    code { padding: 2px 6px; border: 1px solid currentColor; font: 11px var(--mono); letter-spacing: 0; text-transform: none; }
+
+    /* ── Docs ───────────────────────────────────────────────── */
+    .docs-section { max-width: 1680px; margin: auto; padding: 90px 4.2% 110px; }
+    .doc-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px 60px; margin-bottom: 44px; }
+    .doc-links .eyebrow { color: var(--muted); font-size: 10px; margin: 0 0 6px; padding-bottom: 12px; border-bottom: 1px solid #3b3c38; }
+    .doc-links a { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 16px 0; border-bottom: 1px solid #3b3c38; font: 600 clamp(20px, 1.8vw, 26px)/1.2 var(--display); letter-spacing: -.3px; transition: color .2s, padding .2s; }
+    .doc-links a .arrow { width: 18px; height: 18px; color: var(--lime); }
+    .doc-links a:hover { color: var(--lime); padding-left: 8px; }
+
+    footer { max-width: 1500px; margin: auto; padding: 32px 4.2% 40px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; color: var(--copy); font-size: 13px; }
+    footer .brand img { width: 36px; }
+    footer a:hover { color: var(--paper); }
+
+    @media (max-width: 1000px) {
+      .site-header nav { gap: 23px; font-size: 12px; }
+      .hero { min-height: 740px; }
+      .hero h1 { font-size: clamp(55px, 6.6vw, 77px); letter-spacing: -2px; }
+      .hero-description { gap: 35px; }
+    }
+
+    @media (max-width: 760px) {
+      .site-header { height: 78px; padding-inline: 5%; gap: 14px; }
+      .site-header nav { display: none; }
+      .header-cta { font-size: 12px; padding: 10px 13px; gap: 15px; min-height: 42px; }
+      .brand img { width: 42px; }
+      .hero { padding: 30px 5% 25px; }
+      .hero h1 { font-size: clamp(36px, 9vw, 58px); line-height: 1.06; letter-spacing: -1.5px; margin: 60px 0 35px; }
+      .hero-topline .micro, .hero-bottom > .micro:last-child { display: none; }
+      .hero-description { flex-direction: column; align-items: flex-start; gap: 28px; margin-bottom: 35px; }
+      .hero-actions { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 20px; }
+      .tools-section, .docs-section { padding: 65px 5% 80px; }
+      .section-head { flex-direction: column; gap: 16px; }
+      .chapter-folder { width: 56px; height: 56px; font-size: 30px; }
+      .tool { min-height: 420px; padding: 24px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="arrow-ne" viewBox="0 0 16 16"><path d="M4 12 12 4M5.5 4H12v6.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square"/></symbol>
+    <symbol id="arrow-se" viewBox="0 0 16 16"><path d="M4 4l8 8M12 5.5V12H5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square"/></symbol>
+    <symbol id="arrow-down" viewBox="0 0 16 16"><path d="M8 2v12M3.5 9.5 8 14l4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+  </svg>
+
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Tabula Tools home"><img src="/tools-logo.svg" alt="Tabula Tools" width="28" height="26" /></a>
+    <nav aria-label="Main navigation">
+      <a href="#tools">Tools <svg class="arrow"><use href="#arrow-se"/></svg></a>
+      <a href="/viewer/">Viewer <svg class="arrow"><use href="#arrow-se"/></svg></a>
+      <a href="/exporter/">Exporter <svg class="arrow"><use href="#arrow-se"/></svg></a>
+      <a href="#docs">Docs <svg class="arrow"><use href="#arrow-se"/></svg></a>
+    </nav>
+    <a class="button header-cta" href="https://tabula-studio.nsftx-0693.chatgpt.site/">Open Studio <svg class="arrow"><use href="#arrow-ne"/></svg></a>
+  </header>
+
+  <main id="main">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-bg" aria-hidden="true"><svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice"><g fill="none" stroke="#b9bab3" stroke-width=".9" vector-effect="non-scaling-stroke"><path d="M-200 -168L-160 -159L-120 -150L-80 -140L-40 -130L0 -120L40 -110L80 -100L120 -90L160 -81L200 -72L240 -65L280 -58L320 -53L360 -49L400 -46L440 -44L480 -44L520 -44L560 -46L600 -50L640 -54L680 -59L720 -65L760 -71L800 -78L840 -85L880 -92L920 -99L960 -106L1000 -112L1040 -118L1080 -123L1120 -127L1160 -131L1200 -133L1240 -134L1280 -134L1320 -134L1360 -132L1400 -129L1440 -126L1480 -122L1520 -117L1560 -112L1600 -107L1640 -101L1680 -96L1720 -91L1760 -87L1800 -83" stroke-opacity="0.25"/><path d="M-200 -130L-160 -118L-120 -105L-80 -92L-40 -79L0 -67L40 -54L80 -43L120 -32L160 -23L200 -14L240 -7L280 -2L320 2L360 4L400 5L440 4L480 2L520 -2L560 -7L600 -12L640 -19L680 -27L720 -34L760 -42L800 -50L840 -58L880 -65L920 -72L960 -78L1000 -83L1040 -87L1080 -89L1120 -91L1160 -91L1200 -90L1240 -87L1280 -84L1320 -79L1360 -73L1400 -67L1440 -60L1480 -52L1520 -45L1560 -37L1600 -30L1640 -23L1680 -17L1720 -12L1760 -7L1800 -5" stroke-opacity="0.32"/><path d="M-200 -84L-160 -69L-120 -54L-80 -39L-40 -25L0 -11L40 1L80 12L120 22L160 30L200 36L240 40L280 43L320 44L360 42L400 40L440 36L480 30L520 23L560 16L600 8L640 -1L680 -10L720 -18L760 -26L800 -34L840 -40L880 -46L920 -50L960 -53L1000 -54L1040 -54L1080 -52L1120 -49L1160 -44L1200 -38L1240 -30L1280 -22L1320 -12L1360 -2L1400 8L1440 19L1480 29L1520 39L1560 48L1600 56L1640 64L1680 69L1720 73L1760 75L1800 76" stroke-opacity="0.39"/><path d="M-200 -29L-160 -13L-120 3L-80 17L-40 31L0 42L40 53L80 61L120 67L160 71L200 73L240 73L280 72L320 68L360 63L400 56L440 48L480 40L520 31L560 21L600 12L640 3L680 -6L720 -13L760 -19L800 -24L840 -28L880 -29L920 -29L960 -26L1000 -22L1040 -16L1080 -8L1120 1L1160 12L1200 24L1240 37L1280 51L1320 65L1360 79L1400 93L1440 106L1480 119L1520 129L1560 139L1600 146L1640 152L1680 155L1720 156L1760 155L1800 151" stroke-opacity="0.46"/><path d="M-200 33L-160 47L-120 61L-80 72L-40 82L0 89L40 95L80 98L120 99L160 97L200 94L240 89L280 82L320 74L360 64L400 54L440 43L480 32L520 22L560 12L600 3L640 -4L680 -10L720 -14L760 -17L800 -17L840 -14L880 -10L920 -3L960 6L1000 18L1040 31L1080 45L1120 61L1160 79L1200 97L1240 115L1280 133L1320 151L1360 168L1400 183L1440 197L1480 210L1520 220L1560 227L1600 232L1640 234L1680 234L1720 230L1760 224L1800 215" stroke-opacity="0.25"/><path d="M-200 92L-160 97L-120 100L-80 103L-40 104L0 105L40 104L80 102L120 100L160 97L200 93L240 88L280 83L320 78L360 73L400 67L440 62L480 58L520 54L560 50L600 48L640 46L680 46L720 46L760 48L800 51L840 55L880 60L920 66L960 73L1000 81L1040 89L1080 98L1120 107L1160 117L1200 126L1240 135L1280 144L1320 152L1360 159L1400 166L1440 171L1480 175L1520 178L1560 180L1600 180L1640 179L1680 176L1720 173L1760 168L1800 162" stroke-opacity="0.32"/><path d="M-200 143L-160 145L-120 145L-80 144L-40 142L0 138L40 134L80 129L120 122L160 115L200 108L240 101L280 93L320 86L360 79L400 72L440 67L480 63L520 59L560 57L600 57L640 58L680 61L720 65L760 70L800 77L840 86L880 95L920 106L960 118L1000 130L1040 142L1080 155L1120 168L1160 180L1200 192L1240 203L1280 213L1320 222L1360 230L1400 236L1440 240L1480 243L1520 244L1560 243L1600 241L1640 237L1680 232L1720 225L1760 217L1800 208" stroke-opacity="0.39"/><path d="M-200 191L-160 188L-120 183L-80 177L-40 170L0 162L40 152L80 142L120 132L160 122L200 111L240 101L280 92L320 83L360 76L400 70L440 66L480 63L520 63L560 64L600 67L640 72L680 79L720 88L760 99L800 111L840 124L880 138L920 154L960 170L1000 186L1040 201L1080 217L1120 232L1160 246L1200 259L1240 270L1280 280L1320 288L1360 294L1400 298L1440 300L1480 300L1520 298L1560 294L1600 288L1640 281L1680 272L1720 262L1760 252L1800 240" stroke-opacity="0.46"/><path d="M-200 232L-160 223L-120 212L-80 200L-40 187L0 174L40 160L80 146L120 132L160 118L200 106L240 95L280 85L320 77L360 71L400 67L440 66L480 67L520 70L560 76L600 84L640 94L680 106L720 120L760 136L800 153L840 171L880 190L920 209L960 227L1000 246L1040 263L1080 280L1120 295L1160 309L1200 320L1240 330L1280 337L1320 342L1360 345L1400 345L1440 344L1480 340L1520 334L1560 326L1600 317L1640 307L1680 296L1720 284L1760 271L1800 259" stroke-opacity="0.25"/><path d="M-200 263L-160 248L-120 231L-80 213L-40 195L0 177L40 159L80 142L120 126L160 111L200 99L240 88L280 80L320 75L360 72L400 72L440 75L480 81L520 89L560 100L600 113L640 129L680 146L720 165L760 185L800 206L840 227L880 248L920 268L960 288L1000 306L1040 323L1080 338L1120 351L1160 362L1200 370L1240 376L1280 379L1320 380L1360 378L1400 374L1440 368L1480 360L1520 350L1560 339L1600 328L1640 315L1680 303L1720 291L1760 279L1800 268" stroke-opacity="0.32"/><path d="M-200 294L-160 285L-120 275L-80 266L-40 257L0 248L40 240L80 232L120 226L160 220L200 216L240 212L280 211L320 210L360 211L400 213L440 216L480 221L520 227L560 234L600 241L640 249L680 258L720 267L760 277L800 286L840 295L880 304L920 312L960 319L1000 326L1040 332L1080 336L1120 340L1160 342L1200 343L1240 343L1280 342L1320 340L1360 337L1400 333L1440 329L1480 324L1520 319L1560 314L1600 309L1640 304L1680 299L1720 295L1760 291L1800 288" stroke-opacity="0.39"/><path d="M-200 321L-160 308L-120 296L-80 284L-40 273L0 263L40 253L80 246L120 239L160 234L200 231L240 230L280 230L320 232L360 236L400 241L440 248L480 255L520 264L560 274L600 284L640 295L680 306L720 317L760 327L800 337L840 347L880 355L920 362L960 369L1000 373L1040 377L1080 379L1120 380L1160 379L1200 377L1240 374L1280 370L1320 365L1360 359L1400 353L1440 347L1480 340L1520 334L1560 328L1600 323L1640 318L1680 314L1720 312L1760 310L1800 310" stroke-opacity="0.46"/><path d="M-200 344L-160 329L-120 314L-80 301L-40 290L0 280L40 271L80 265L120 261L160 258L200 258L240 259L280 263L320 268L360 275L400 284L440 293L480 304L520 315L560 327L600 339L640 351L680 362L720 373L760 382L800 391L840 398L880 404L920 409L960 411L1000 412L1040 412L1080 410L1120 406L1160 402L1200 396L1240 389L1280 382L1320 374L1360 366L1400 358L1440 350L1480 343L1520 337L1560 332L1600 328L1640 326L1680 325L1720 326L1760 328L1800 333" stroke-opacity="0.25"/><path d="M-200 365L-160 350L-120 336L-80 324L-40 314L0 306L40 300L80 297L120 296L160 297L200 301L240 306L280 314L320 322L360 333L400 344L440 356L480 368L520 380L560 392L600 404L640 414L680 424L720 432L760 438L800 443L840 446L880 447L920 446L960 444L1000 440L1040 434L1080 426L1120 418L1160 409L1200 399L1240 388L1280 378L1320 368L1360 359L1400 350L1440 343L1480 337L1520 333L1560 330L1600 330L1640 332L1680 336L1720 342L1760 350L1800 360" stroke-opacity="0.32"/><path d="M-200 390L-160 377L-120 366L-80 357L-40 351L0 347L40 346L80 347L120 351L160 356L200 364L240 373L280 384L320 396L360 408L400 420L440 433L480 445L520 456L560 466L600 474L640 481L680 486L720 489L760 490L800 489L840 485L880 480L920 472L960 463L1000 453L1040 441L1080 428L1120 415L1160 402L1200 388L1240 376L1280 364L1320 353L1360 344L1400 337L1440 332L1480 329L1520 329L1560 331L1600 336L1640 343L1680 353L1720 366L1760 381L1800 397" stroke-opacity="0.39"/><path d="M-200 475L-160 471L-120 468L-80 467L-40 467L0 467L40 469L80 472L120 475L160 480L200 484L240 489L280 495L320 500L360 505L400 510L440 514L480 518L520 521L560 523L600 525L640 525L680 524L720 522L760 520L800 516L840 511L880 506L920 500L960 493L1000 486L1040 479L1080 472L1120 465L1160 458L1200 452L1240 446L1280 441L1320 437L1360 435L1400 433L1440 433L1480 434L1520 436L1560 439L1600 444L1640 450L1680 457L1720 465L1760 474L1800 483" stroke-opacity="0.46"/><path d="M-200 515L-160 514L-120 514L-80 516L-40 519L0 523L40 527L80 533L120 539L160 545L200 552L240 558L280 564L320 570L360 575L400 579L440 581L480 583L520 584L560 583L600 580L640 577L680 572L720 566L760 558L800 550L840 541L880 531L920 521L960 510L1000 500L1040 490L1080 480L1120 471L1160 463L1200 456L1240 450L1280 446L1320 444L1360 443L1400 443L1440 446L1480 450L1520 455L1560 463L1600 471L1640 481L1680 492L1720 504L1760 516L1800 529" stroke-opacity="0.25"/><path d="M-200 567L-160 570L-120 575L-80 580L-40 587L0 594L40 602L80 610L120 618L160 626L200 633L240 640L280 645L320 649L360 652L400 653L440 652L480 650L520 646L560 640L600 633L640 624L680 614L720 602L760 589L800 576L840 562L880 548L920 534L960 520L1000 507L1040 495L1080 484L1120 475L1160 467L1200 461L1240 457L1280 454L1320 454L1360 457L1400 461L1440 467L1480 475L1520 485L1560 496L1600 509L1640 522L1680 537L1720 551L1760 566L1800 581" stroke-opacity="0.32"/><path d="M-200 634L-160 642L-120 651L-80 661L-40 671L0 681L40 692L80 701L120 710L160 717L200 724L240 728L280 731L320 732L360 730L400 727L440 721L480 713L520 703L560 692L600 678L640 663L680 647L720 630L760 612L800 595L840 577L880 559L920 543L960 527L1000 513L1040 501L1080 491L1120 482L1160 476L1200 473L1240 472L1280 473L1320 477L1360 483L1400 492L1440 502L1480 514L1520 528L1560 543L1600 558L1640 574L1680 591L1720 607L1760 623L1800 638" stroke-opacity="0.39"/><path d="M-200 715L-160 728L-120 741L-80 755L-40 768L0 780L40 791L80 800L120 808L160 813L200 816L240 817L280 815L320 811L360 804L400 794L440 782L480 768L520 752L560 734L600 714L640 694L680 673L720 651L760 630L800 609L840 589L880 570L920 553L960 538L1000 525L1040 514L1080 506L1120 501L1160 499L1200 500L1240 503L1280 509L1320 517L1360 528L1400 540L1440 554L1480 570L1520 586L1560 603L1600 620L1640 637L1680 653L1720 668L1760 682L1800 694" stroke-opacity="0.46"/><path d="M-200 757L-160 764L-120 771L-80 777L-40 783L0 788L40 792L80 795L120 797L160 797L200 797L240 795L280 791L320 787L360 781L400 774L440 767L480 758L520 749L560 739L600 729L640 719L680 708L720 698L760 689L800 680L840 671L880 664L920 658L960 653L1000 649L1040 646L1080 644L1120 644L1160 645L1200 648L1240 651L1280 656L1320 661L1360 667L1400 673L1440 680L1480 687L1520 694L1560 701L1600 708L1640 714L1680 719L1720 724L1760 728L1800 731" stroke-opacity="0.25"/><path d="M-200 832L-160 841L-120 849L-80 857L-40 862L0 867L40 870L80 871L120 871L160 869L200 865L240 860L280 853L320 844L360 835L400 824L440 813L480 800L520 787L560 775L600 762L640 749L680 737L720 726L760 715L800 706L840 698L880 691L920 686L960 683L1000 681L1040 680L1080 681L1120 684L1160 688L1200 693L1240 699L1280 706L1320 713L1360 721L1400 729L1440 737L1480 744L1520 752L1560 758L1600 764L1640 768L1680 772L1720 774L1760 775L1800 775" stroke-opacity="0.32"/><path d="M-200 912L-160 922L-120 930L-80 936L-40 941L0 943L40 944L80 942L120 938L160 932L200 925L240 915L280 904L320 892L360 878L400 864L440 849L480 834L520 819L560 805L600 791L640 778L680 766L720 755L760 746L800 738L840 732L880 729L920 726L960 726L1000 728L1040 731L1080 735L1120 741L1160 748L1200 755L1240 764L1280 772L1320 781L1360 789L1400 797L1440 804L1480 811L1520 816L1560 820L1600 822L1640 823L1680 822L1720 820L1760 816L1800 811" stroke-opacity="0.39"/><path d="M-200 990L-160 998L-120 1005L-80 1009L-40 1010L0 1009L40 1006L80 1000L120 992L160 982L200 970L240 957L280 942L320 927L360 911L400 894L440 878L480 862L520 847L560 833L600 820L640 808L680 799L720 791L760 786L800 782L840 780L880 781L920 783L960 787L1000 792L1040 799L1080 807L1120 816L1160 825L1200 835L1240 844L1280 853L1320 861L1360 868L1400 874L1440 879L1480 881L1520 882L1560 881L1600 879L1640 874L1680 867L1720 859L1760 849L1800 838" stroke-opacity="0.46"/><path d="M-200 1059L-160 1064L-120 1067L-80 1067L-40 1064L0 1059L40 1051L80 1041L120 1029L160 1015L200 1000L240 983L280 967L320 949L360 933L400 916L440 901L480 886L520 874L560 863L600 854L640 847L680 842L720 839L760 839L800 841L840 845L880 851L920 858L960 867L1000 876L1040 887L1080 897L1120 908L1160 919L1200 928L1240 937L1280 944L1320 949L1360 953L1400 955L1440 954L1480 951L1520 946L1560 938L1600 929L1640 917L1680 903L1720 888L1760 872L1800 854" stroke-opacity="0.25"/><path d="M-200 1006L-160 1006L-120 1005L-80 1003L-40 1000L0 996L40 991L80 985L120 978L160 971L200 964L240 957L280 950L320 944L360 937L400 932L440 927L480 923L520 920L560 917L600 916L640 916L680 917L720 919L760 921L800 925L840 929L880 934L920 939L960 944L1000 950L1040 955L1080 960L1120 964L1160 968L1200 971L1240 974L1280 975L1320 975L1360 975L1400 973L1440 969L1480 965L1520 960L1560 954L1600 946L1640 938L1680 930L1720 921L1760 911L1800 902" stroke-opacity="0.32"/></g></svg></div>
+      <div class="hero-grid" aria-hidden="true"></div>
+
+      <div class="hero-topline">
+        <span class="eyebrow"><i class="live-dot"></i> Tabula / Tools for the runtime</span>
+        <span class="micro">From the export to the game.</span>
+      </div>
+
+      <h1 id="hero-title">Tools for Tabula<br />skeletons &amp; <em>scenes.</em></h1>
+
+      <div class="hero-description">
+        <div class="hero-copy">
+          <p>Your animations.<br />Checked, packed and ready.</p>
+          <p class="subcopy">Inspect skeletons and scenes in the browser, export runtime assets with KTX2 textures and MSDF fonts, and get every build ready to ship.</p>
+          <span class="hero-roadmap">Inspect / Export / Ship</span>
+        </div>
+        <div class="hero-actions">
+          <a class="button" href="/viewer/">Open Viewer <svg class="arrow"><use href="#arrow-ne"/></svg></a>
+          <a class="hero-link" href="#tools">See all tools <svg class="arrow"><use href="#arrow-down"/></svg></a>
+        </div>
+      </div>
+
+      <div class="hero-bottom">
+        <span class="micro">Spine 4.1 / 4.2 and Tabula exports.<br />Built on tabula-pixi.</span>
+        <a href="#tools" class="scroll-cue"><span>EXPLORE TOOLS</span><i><svg class="arrow"><use href="#arrow-down"/></svg></i></a>
+        <span class="micro">View / Export / Fonts / Reel</span>
+      </div>
+    </section>
+
+    <section class="tools-section" id="tools" aria-labelledby="tools-title">
+      <div class="section-head">
+        <span class="chapter-folder" aria-hidden="true">01</span>
+        <div>
+          <p class="eyebrow">The toolkit</p>
+          <h2 id="tools-title">One runtime.<em>Every tool.</em></h2>
+        </div>
+      </div>
+
+      <div class="tools">
+        <a class="tool lime" href="/viewer/">
+          <div class="tool-top"><span>In browser</span><b>01</b></div>
+          <svg class="tool-icon" viewBox="0 0 300 205" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M20 102s50-72 130-72 130 72 130 72-50 72-130 72S20 102 20 102Z"/><circle cx="150" cy="102" r="38"/><path class="accent" d="M150 82v40M130 102h40"/></svg>
+          <h3>Viewer.<span>See it run.</span></h3>
+          <p>Drop in Spine JSON with atlases, or a Tabula export, to play animations, check blend batching, and watch performance and memory.</p>
+          <span class="tool-foot">01 / Spine 4.1·4.2 · .tbla · KTX2 <svg class="arrow"><use href="#arrow-ne"/></svg></span>
+        </a>
+
+        <a class="tool" href="/exporter/">
+          <div class="tool-top"><span>In browser</span><b>02</b></div>
+          <svg class="tool-icon" viewBox="0 0 300 205" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><rect x="16" y="24" width="120" height="120" rx="4"/><path d="M16 64h120M56 24v120"/><rect x="180" y="60" width="104" height="104" rx="4"/><path class="accent" d="M140 84h36m-12-12 12 12-12 12"/></svg>
+          <h3>Exporter.<span>Built for runtime.</span></h3>
+          <p>Compiles, bakes and repacks a Spine export folder into runtime bundles, right in the page. KTX2 textures need the desktop app.</p>
+          <span class="tool-foot">02 / .tbla · repack · KTX2 on desktop <svg class="arrow"><use href="#arrow-ne"/></svg></span>
+        </a>
+
+        <div class="tool planned">
+          <div class="tool-top"><span>Planned</span><b>03</b></div>
+          <svg class="tool-icon" viewBox="0 0 300 205" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M30 180 90 24h40l60 156"/><path d="M58 120h104"/><path class="accent" d="M220 60h60M220 100h60M220 140h40"/></svg>
+          <h3>Font Editor.<span>Every glyph.</span></h3>
+          <p>Builds bitmap and MSDF fonts, with glyph sets, kerning and i18n coverage checks.</p>
+          <span class="tool-foot">03 / MSDF · i18n</span>
+        </div>
+
+        <div class="tool planned">
+          <div class="tool-top"><span>Planned</span><b>04</b></div>
+          <svg class="tool-icon" viewBox="0 0 300 205" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><rect x="16" y="30" width="268" height="150" rx="4"/><path d="M16 70h268M80 30v40M150 30v40M220 30v40"/><path class="accent" d="m135 100 40 25-40 25z"/></svg>
+          <h3>Reel.<span>Show it off.</span></h3>
+          <p>Assembles animations into promo reels and previews.</p>
+          <span class="tool-foot">04 / GSAP · video</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="docs-section" id="docs" aria-labelledby="docs-title">
+      <div class="section-head">
+        <span class="chapter-folder" aria-hidden="true">02</span>
+        <div>
+          <p class="eyebrow">Guides and references</p>
+          <h2 id="docs-title">Read the docs.<em>Ship with confidence.</em></h2>
+        </div>
+      </div>
+
+      <div class="doc-links">
+        <!-- docs-links:start (generated by scripts/build-docs.mjs from its docs list) -->
+        <div>
+          <p class="eyebrow">Runtime / tabula-pixi</p>
+          <a href="/docs/runtime.html">Guides and modules <svg class="arrow"><use href="#arrow-ne"/></svg></a>
+          <a href="/docs/runtime-getting-started.html">Getting started <svg class="arrow"><use href="#arrow-ne"/></svg></a>
+          <a href="/docs/runtime-migration.html">Migrating from pixi-spine <svg class="arrow"><use href="#arrow-ne"/></svg></a>
+          <a href="/docs/runtime-api-v7.html">API reference <svg class="arrow"><use href="#arrow-ne"/></svg></a>
+        </div>
+        <div>
+          <p class="eyebrow">Viewer</p>
+          <a href="/docs/viewer.html">Viewer guide <svg class="arrow"><use href="#arrow-ne"/></svg></a>
+          <a href="/docs/performance.html">Performance panel <svg class="arrow"><use href="#arrow-ne"/></svg></a>
+          <a href="/docs/asset-health.html">Asset health inspector <svg class="arrow"><use href="#arrow-ne"/></svg></a>
+        </div>
+        <div>
+          <p class="eyebrow">Exporter</p>
+          <a href="/docs/app.html">Tabula app and export <svg class="arrow"><use href="#arrow-ne"/></svg></a>
+          <a href="/docs/cli.html">CLI reference <svg class="arrow"><use href="#arrow-ne"/></svg></a>
+          <a href="/docs/export-format.html">Export format <svg class="arrow"><use href="#arrow-ne"/></svg></a>
+          <a href="/docs/embedding.html">Recreating the export in another app <svg class="arrow"><use href="#arrow-ne"/></svg></a>
+        </div>
+        <!-- docs-links:end -->
+      </div>
+
+      <a class="button" href="/docs/">All docs <svg class="arrow"><use href="#arrow-ne"/></svg></a>
+    </section>
+  </main>
+
+  <footer>
+    <a class="brand" href="/" aria-label="Tabula Tools home"><img src="/tools-logo.svg" alt="Tabula Tools" width="28" height="26" /></a>
+    <span>Tabula Tools · Built on tabula-pixi</span>
+    <a href="https://tabula-studio.nsftx-0693.chatgpt.site/">Tabula Studio <svg class="arrow"><use href="#arrow-ne"/></svg></a>
+  </footer>
+  <script>
+    // Hero background: the static wave lines each drift on their own wave.
+    (() => {
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const hero = document.querySelector('.hero');
+      const lines = [...document.querySelectorAll('.hero-bg path')].map((el, i) => ({
+        el,
+        // Per-line wave: own wavelength, phase, direction and speed so each moves on its own.
+        k1: 0.003 + Math.random() * 0.003, k2: 0.0012 + Math.random() * 0.001,
+        p1: Math.random() * 6.28, p2: Math.random() * 6.28,
+        s1: (0.4 + Math.random() * 0.4) * (Math.random() < 0.5 ? -1 : 1),
+        s2: (0.15 + Math.random() * 0.2) * (Math.random() < 0.5 ? -1 : 1),
+        a1: 12 + Math.random() * 10, a2: 8 + Math.random() * 8,
+        pts: el.getAttribute('d').slice(1).split('L').map((p) => p.trim().split(' ').map(Number)),
+      }));
+      let visible = true;
+      new IntersectionObserver(([e]) => { visible = e.isIntersecting; }).observe(hero);
+      const frame = (ms) => {
+        if (visible) {
+          const t = ms / 1000;
+          for (const { el, pts, k1, k2, p1, p2, s1, s2, a1, a2 } of lines) {
+            let d = '';
+            for (const [x, y] of pts) {
+              const dy = Math.sin(x * k1 + t * s1 + p1) * a1 + Math.sin(x * k2 + t * s2 + p2) * a2;
+              d += (d ? 'L' : 'M') + x + ' ' + (y + dy).toFixed(1);
+            }
+            el.setAttribute('d', d);
+          }
+        }
+        requestAnimationFrame(frame);
+      };
+      requestAnimationFrame(frame);
+    })();
+  </script>
+</body>
+</html>

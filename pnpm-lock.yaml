@@ -170,6 +170,9 @@ importers:
         specifier: 0.1.0-beta.4
         version: 0.1.0-beta.4(pixi.js@7.4.3)
     devDependencies:
+      '@jsquash/webp':
+        specifier: 1.5.0
+        version: 1.5.0
       '@types/node':
         specifier: ^20.10.0
         version: 20.19.43
@@ -188,9 +191,15 @@ importers:
       eslint:
         specifier: ^8.55.0
         version: 8.57.1(supports-color@7.2.0)
+      fflate:
+        specifier: 0.8.3
+        version: 0.8.3
       harfbuzzjs:
         specifier: 1.6.3
         version: 1.6.3
+      marked:
+        specifier: 12.0.2
+        version: 12.0.2
       pixi.js:
         specifier: ^7.4.0
         version: 7.4.3
@@ -213,6 +222,12 @@ importers:
       sharp:
         specifier: ^0.33.5
         version: 0.33.5
+
+  packages/site:
+    devDependencies:
+      vite:
+        specifier: ^6.3.5
+        version: 6.4.4(@types/node@20.19.43)(tsx@4.23.15)
 
   packages/viewer:
     dependencies:
@@ -877,6 +892,9 @@ packages:
 
   '@jridgewell/sourcemap-codec@1.6.0':
     resolution: {integrity: sha512-T7jf+5zgsZHwNJ4lvQ7/aezbyk0nNX+zJVWpmHA7VYsEx7a7qr5Rg5IbtJFqkgze5Y2sruq1RUY8Q837Od7iFw==}
+
+  '@jsquash/webp@1.5.0':
+    resolution: {integrity: sha512-KggLoj2MnRSfIqTeKe1EmbljTX2vuV7mh79k89PCL1pyqiDULcPM1L47twxXt0hkb68F70bXiL31MxsuoZtKFw==}
 
   '@malept/cross-spawn-promise@2.0.0':
     resolution: {integrity: sha512-1DpKU0Z5ThltBwjNySMC14g0CkbyhCaz9FkhxqNsZI6uAPJXFS8cMXlBKo26FJ8ZuW6S9GCMcR9IO5k2X5/9Fg==}
@@ -1977,6 +1995,9 @@ packages:
       picomatch:
         optional: true
 
+  fflate@0.8.3:
+    resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
+
   file-entry-cache@6.0.1:
     resolution: {integrity: sha512-7Gps/XWymbLk2QLYK4NzpMOrYjMhdIxXuIvy2QBsLE6ljuodKvdkWs/cpyJJ3CVIVpH0Oi1Hvg1ovbMzLdFBBg==}
     engines: {node: ^10.12.0 || >=12.0.0}
@@ -2390,6 +2411,11 @@ packages:
   make-fetch-happen@10.2.1:
     resolution: {integrity: sha512-NgOPbRiaQM10DYXvN3/hhGVI2M5MtITFryzBGxHM5p4wnFxsVCbxkrBrDsk+EZ5OB4jEOT7AjDxtdF+KVEFT7w==}
     engines: {node: ^12.13.0 || ^14.15.0 || >=16.0.0}
+
+  marked@12.0.2:
+    resolution: {integrity: sha512-qXUm7e/YKFoqFPYPa3Ukg9xlI5cyAtGmyEIzMfW//m6kXwCy2Ps9DYf5ioijFKQ8qyuscrHoY04iJGctu2Kg0Q==}
+    engines: {node: '>= 18'}
+    hasBin: true
 
   matcher@3.0.0:
     resolution: {integrity: sha512-OkeDaAZ/bQCxeFAozM55PKcKU0yJMPGifLwV4Qgjitu+5MoAfSQN4lsLJeXZ1b8w0x+/Emda6MZgXS1jvsapng==}
@@ -3187,6 +3213,9 @@ packages:
       jsdom:
         optional: true
 
+  wasm-feature-detect@1.9.0:
+    resolution: {integrity: sha512-zonE+xlIIYtxPy++L24ow0hAD8CICb4+FgPyROd3buyXIqsJvUEDkBgfCCoXOd1Hu3DUr0GOfnPIdcGV+YpNaA==}
+
   wcwidth@1.0.1:
     resolution: {integrity: sha512-XHPEwS0q6TaxcvG85+8EYkbiCux2XtWG2mkc47Ng2A77BQu9+DqIOJldST4HgPkuea7dvKSj5VgX3P1d4rW8Tg==}
 
@@ -3688,6 +3717,10 @@ snapshots:
       '@sinclair/typebox': 0.27.12
 
   '@jridgewell/sourcemap-codec@1.6.0': {}
+
+  '@jsquash/webp@1.5.0':
+    dependencies:
+      wasm-feature-detect: 1.9.0
 
   '@malept/cross-spawn-promise@2.0.0':
     dependencies:
@@ -4985,6 +5018,8 @@ snapshots:
     optionalDependencies:
       picomatch: 4.0.7
 
+  fflate@0.8.3: {}
+
   file-entry-cache@6.0.1:
     dependencies:
       flat-cache: 3.2.0
@@ -5442,6 +5477,8 @@ snapshots:
     transitivePeerDependencies:
       - bluebird
       - supports-color
+
+  marked@12.0.2: {}
 
   matcher@3.0.0:
     dependencies:
@@ -6272,6 +6309,8 @@ snapshots:
       - sugarss
       - supports-color
       - terser
+
+  wasm-feature-detect@1.9.0: {}
 
   wcwidth@1.0.1:
     dependencies:

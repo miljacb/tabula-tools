@@ -17,20 +17,25 @@
   },
   "files": [
     "dist",
-    "dist-app"
+    "dist-app",
+    "dist-web",
+    "!dist-web/exporter"
   ],
   "scripts": {
+    "dev": "node scripts/dev.mjs",
     "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.check.json",
+    "typecheck": "tsc -p tsconfig.check.json && tsc -p app/web/shims/tsconfig.json",
     "lint": "eslint src app tests scripts --ext .ts",
     "audit": "tsx src/cli/index.ts audit tests/assets",
     "app": "vite --config app/vite.config.ts",
     "app:build": "vite build --config app/vite.config.ts",
-    "desktop": "pnpm build && pnpm app:build && node desktop/run.mjs",
-    "desktop:dist": "pnpm build && pnpm app:build && electron-builder --config desktop/electron-builder.json",
+    "desktop": "pnpm build && pnpm app:build && pnpm build:web && node desktop/run.mjs",
+    "desktop:dist": "pnpm build && pnpm app:build && pnpm build:web && electron-builder --config desktop/electron-builder.json",
     "report:ktx": "tsx scripts/ktx-quality.ts",
-    "docs": "tsx scripts/gen-api-docs.ts"
+    "docs": "tsx scripts/gen-api-docs.ts",
+    "build:web": "node scripts/build-web.mjs",
+    "docs:runtime": "node scripts/sync-runtime-docs.mjs"
   },
   "dependencies": {
     "tabula-pixi": "0.1.0-beta.4"
@@ -40,20 +45,23 @@
     "sharp": "^0.33.5"
   },
   "devDependencies": {
+    "@jsquash/webp": "1.5.0",
     "@types/node": "^20.10.0",
     "@typescript-eslint/eslint-plugin": "^6.13.0",
     "@typescript-eslint/parser": "^6.13.0",
     "electron": "^33.4.11",
     "electron-builder": "^25.1.8",
     "eslint": "^8.55.0",
+    "fflate": "0.8.3",
     "harfbuzzjs": "1.6.3",
+    "marked": "12.0.2",
     "pixi.js": "^7.4.0",
     "tsx": "^4.7.0",
     "typescript": "^5.3.0",
     "vite": "^5.0.0",
     "vitest": "^1.0.0"
   },
-  "author": "Miljenko Brki\u0107",
+  "author": "Miljenko Brkić",
   "license": "UNLICENSED",
   "keywords": [
     "spine",

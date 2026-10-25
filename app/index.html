@@ -3,25 +3,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tabula</title>
-  <link rel="icon" href="data:,">
+  <title>Tabula Exporter</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <header>
-    <strong class="brand">Tabula</strong>
-    <button id="open" title="Open another project folder">Open…</button>
+  <header class="app-header">
+    <a class="app-brand" href="/" title="All tools">Tabula <span>Exporter</span></a>
     <span id="project-path" class="muted"></span>
     <span class="spacer"></span>
     <span id="status" class="muted"></span>
-    <button id="export" class="primary" hidden title="Compress the checked skeletons and write the export folder with its manifest">Export</button>
+    <div class="app-header-actions">
+      <button id="open" class="header-btn" type="button" title="Open another project folder"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>Open</button>
+      <button id="export" class="primary" type="button" hidden title="Compress the checked skeletons and write the export folder with its manifest">Export</button>
+    </div>
   </header>
   <section id="start" hidden>
     <div class="start-card">
+      <p class="eyebrow">Tabula Exporter</p>
       <h1>Open a project</h1>
-      <p class="muted">A folder with Spine JSON exports (with their .atlas and page images), sprite sheets and fonts. The export goes to <code>tabula-export</code> inside it.</p>
+      <p class="muted" id="start-intro">A folder with Spine JSON exports (with their .atlas and page images), sprite sheets and fonts. The export goes to <code>tabula-export</code> inside it.</p>
       <div id="drop" class="drop">
-        <button id="pick" class="primary">Open folder…</button>
+        <button id="pick" class="primary" type="button">Open folder…</button>
         <span class="muted" id="drop-hint">or drop a folder here</span>
       </div>
       <form id="path-form" class="path-form">
@@ -29,18 +32,35 @@
         <button type="submit">Open</button>
       </form>
       <p id="start-error" class="error"></p>
-      <h2>Recent</h2>
-      <ul id="recent" class="recent"></ul>
+      <div id="recent-block">
+        <h2>Recent</h2>
+        <ul id="recent" class="recent"></ul>
+      </div>
     </div>
   </section>
-  <main>
-    <aside id="assets" aria-label="Assets"></aside>
-    <section id="detail-pane">
+  <main class="shell">
+    <nav class="tool-rail" aria-label="Tools">
+      <button class="rail-tool" type="button" data-tool="assets" data-drawer="left" title="Assets" aria-label="Assets" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m3 13 9 5 9-5"/></svg></button>
+      <hr>
+      <button class="rail-tool" type="button" data-tool="settings" data-drawer="right" title="Export settings" aria-label="Export settings" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></button>
+      <button class="rail-tool" type="button" data-tool="groups" data-drawer="right" title="Load groups" aria-label="Load groups" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></button>
+      <button class="rail-tool" type="button" data-tool="report" data-drawer="right" title="Export report" aria-label="Export report" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></button>
+    </nav>
+    <aside class="dock" id="left-dock">
+      <div class="dock-heading">Assets</div>
+      <div class="dock-scroll" id="assets" aria-label="Assets"></div>
+    </aside>
+    <section class="stage-card" id="detail-pane">
+      <div class="stage-toolbar"><h2 id="stage-title">Details</h2></div>
       <div id="details"></div>
     </section>
-    <aside id="side">
-      <section id="settings"></section>
-      <section id="report"></section>
+    <aside class="dock right-drawer" id="right-stack">
+      <div class="dock-heading" id="right-drawer-title">Export settings</div>
+      <div class="dock-scroll">
+        <section class="drawer-page" data-tool="settings" data-title="Export settings" id="settings"></section>
+        <section class="drawer-page" data-tool="groups" data-title="Load groups" id="groups" hidden></section>
+        <section class="drawer-page" data-tool="report" data-title="Export report" id="report" hidden></section>
+      </div>
     </aside>
   </main>
   <script type="module" src="./main.ts"></script>

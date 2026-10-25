@@ -2,13 +2,16 @@
  * The Tabula app page: read a project folder, check its assets, set the
  * export (load groups, atlas pages, tiers) and produce it. There is no
  * preview here: play skeletons and exports in the Tabula Viewer
- * (packages/viewer). Talks to the server in src/cli/app/server.ts.
+ * (packages/viewer). Talks to the server in src/cli/app/server.ts; on the
+ * website, where there is none, to the same code in a worker (app/web/api.ts).
  */
 
 import { globToRegExp } from 'tabula-pixi/core/manifest.js';
-import type { AppProject } from '../src/cli/app/server.js';
+import type { AppProject } from '../src/cli/app/project.js';
 import type { ExportEvent, ExportReport } from '../src/export/export-project.js';
 import type { TabulaProjectConfig } from '../src/export/config.js';
+import { initDrawers, showTool } from './drawers.js';
+import { downloadExport, hasServer, openWebFolder, webFetch } from './web/api.js';
 
 /** export-report.json (`downloads` is missing in reports of older exports). */
 type Report = Omit<ExportReport, 'manifest' | 'downloads' | 'pages' | 'data'> & Partial<Pick<ExportReport, 'downloads' | 'pages' | 'data'>> & { date?: string };
@@ -23,6 +26,11 @@ interface DesktopBridge {
   onProjectOpened(callback: (dir: string) => void): void;
 }
 const desktop = (window as { tabula?: DesktopBridge }).tabula;
+
+/** The website: no server, the project is a folder loaded into the page (no paths, no KTX2). Set by boot(). */
+let web = false;
+/** fetch for /api/: the server's, or on the website the in-page one. */
+let api: (url: string, init?: RequestInit) => Promise<Response> = (url, init) => fetch(url, init);
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const h = <K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> & { class?: string } = {}, ...children: (Node | string | null)[]): HTMLElementTagNameMap[K] => {
@@ -112,6 +120,7 @@ function renderAssets(): void {
 
 function renderDetails(): void {
   const d = $('details');
+  $('stage-title').textContent = selected?.startsWith('bundle:') ? selected.slice('bundle:'.length) : selected ?? 'Details';
   const b = project.bundles.find((x) => `bundle:${x.path}` === selected);
   if (b) {
     const m = b.members;
@@ -230,7 +239,7 @@ function config(): TabulaProjectConfig {
 }
 
 async function saveConfig(next: TabulaProjectConfig): Promise<void> {
-  const res = await fetch('/api/config', { method: 'PUT', body: JSON.stringify(next) });
+  const res = await api('/api/config', { method: 'PUT', body: JSON.stringify(next) });
   const body = await res.json() as TabulaProjectConfig & { error?: string };
   if (!res.ok) throw new Error(body.error ?? res.statusText);
   project.config = body;
@@ -240,6 +249,10 @@ async function saveConfig(next: TabulaProjectConfig): Promise<void> {
 /** Group colors (stable by position). */
 const GROUP_COLORS = ['#2f8f83', '#c2683a', '#6a5acd', '#b8487a', '#4a7fc1', '#8a8a2e', '#9b5a2a', '#3d8b4a'];
 let assignFilter: string | null = null;
+
+function renderGroups(): void {
+  $('groups').replaceChildren(h('div', { class: 'settings-body' }, renderAssignments()));
+}
 
 /** Groups as one table: a row per skeleton with its group picker, chips above with counts (click one to show only its skeletons). */
 function renderAssignments(): HTMLElement {
@@ -254,7 +267,7 @@ function renderAssignments(): HTMLElement {
     const chip = h('button', { class: `chip${active ? ' active' : ''}`, title: active ? 'Show all' : `Show only ${name}` }, dot, `${name} `, h('span', { class: 'muted', textContent: String(count) }));
     chip.onclick = () => {
       assignFilter = active ? null : name;
-      renderSettings();
+      renderGroups();
     };
     return chip;
   }));
@@ -289,7 +302,8 @@ function renderSettings(): void {
     return h('label', { title: t > 1 ? `Needs <name>@${t}x exports (never upscaled)` : t === 1 ? 'Always exported' : `Pages downscaled to ${t * 100}%` }, box, `${t}x`);
   });
   const codec = h('select', {}, ...['none', 'uastc', 'etc1s'].map((v) => h('option', { value: v, textContent: v === 'none' ? 'Off (PNG only)' : v === 'uastc' ? 'UASTC (quality)' : 'ETC1S (small)' })));
-  codec.value = c.ktx2 ?? 'none';
+  codec.value = web ? 'none' : c.ktx2 ?? 'none';
+  codec.disabled = web;
   codec.onchange = () => void saveConfig({ ...c, ktx2: codec.value as TabulaProjectConfig['ktx2'] }).then(renderSettings, showError);
   const bake = h('input', { type: 'checkbox', checked: c.bake !== false });
   bake.onchange = () => void saveConfig({ ...c, bake: bake.checked ? {} : false }).then(renderSettings, showError);
@@ -302,9 +316,8 @@ function renderSettings(): void {
   };
   const imagesBox = h('input', { type: 'checkbox', checked: c.images !== false });
   imagesBox.onchange = () => void saveConfig({ ...c, images: imagesBox.checked }).then(renderSettings, showError);
-  const assignments = renderAssignments();
+  renderGroups();
   $('settings').replaceChildren(
-    h('h2', {}, 'Export settings'),
     h('div', { class: 'settings-body' },
       configError ? h('div', { class: 'badge bad', textContent: configError }) : null,
       h('div', { class: 'field' }, h('span', { textContent: 'Export' }),
@@ -320,12 +333,12 @@ function renderSettings(): void {
       h('div', { class: 'field' }, h('span', { textContent: 'Resolution tiers' }), h('div', { class: 'tiers' }, ...tierBoxes),
         h('span', { class: 'hint', textContent: 'Copies of the atlas pages at other resolutions. The game chooses one (default 1x): lower tiers save GPU memory on weak phones, 2x adds detail on desktop.' })),
       h('div', { class: 'field' }, h('span', { textContent: 'GPU texture compression (KTX2)' }), codec,
-        h('span', { class: 'hint', textContent: 'Pages stay compressed in GPU memory: about 4x less than PNG. UASTC keeps quality; ETC1S makes small files but can band gradients. Devices without support load the PNG.' })),
+        h('span', { class: 'hint', textContent: web ? 'Needs the desktop app (it runs the native KTX2 encoder): the web export writes PNG / WebP pages only.'
+          : 'Pages stay compressed in GPU memory: about 4x less than PNG. UASTC keeps quality; ETC1S makes small files but can band gradients. Devices without support load the PNG.' })),
       h('label', { title: 'Pre-sample animations into .baked files' }, bake, 'Bake animations'),
       h('span', { class: 'hint muted', textContent: 'Baked animations cost far less CPU per frame; tiny differences from the editor are measured and kept under 0.05 units.' }),
       h('label', { title: 'PNG / WebP / JPG files not used by an atlas, sprite sheet or font' }, imagesBox, 'Export standalone images'),
-      assignments,
-      h('span', { class: 'hint muted', textContent: `Saved in ${project.dir}/tabula.config.json.` }),
+      h('span', { class: 'hint muted', textContent: web ? 'Kept while this page is open; the download includes tabula.config.json for the project folder.' : `Saved in ${project.dir}/tabula.config.json.` }),
     ),
   );
 }
@@ -344,6 +357,15 @@ function renderReport(log?: HTMLElement): void {
     const compressed = list.filter((s) => s.format === 'tbin').length;
     const failed = Object.entries(r.skeletons).filter(([, s]) => s.format === 'json' && s.reason !== 'not selected for compression');
     body.append(h('div', { class: 'muted', textContent: `${r.date ? new Date(r.date).toLocaleString() : ''} · ${compressed}/${list.length} skeletons compressed · ${r.mode}, ${r.format === 'tbla' ? '.tbla bundles' : 'loose files'}` }));
+    if (web) {
+      const save = h('button', { class: 'primary', textContent: 'Download export (.zip)', title: 'tabula-export/ and tabula.config.json, to unzip into the project folder' });
+      save.onclick = () => void downloadExport().then(({ name, blob }) => {
+        const link = h('a', { href: URL.createObjectURL(blob), download: name });
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
+      }, showError);
+      body.append(save);
+    }
     if (r.downloads) body.append(renderDownloads(r, r.downloads));
     else body.append(h('span', { class: 'muted', textContent: 'Export again to see what a device downloads (this report is from an older version).' }));
     body.append(h('div', { class: 'muted', textContent: `On disk: ${kib(r.outputBytes)} (every tier and page format) · source ${kib(r.sourceBytes)}` }));
@@ -421,9 +443,10 @@ async function runExport(): Promise<void> {
     elapsed.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   }, 500);
   renderReport(panel);
+  showTool('right', 'report');
   $('status').textContent = 'Exporting… 0%';
   try {
-    const res = await fetch('/api/export', { method: 'POST', body: JSON.stringify({ compress: [...compress] }) });
+    const res = await api('/api/export', { method: 'POST', body: JSON.stringify({ compress: [...compress] }) });
     if (!res.ok || !res.body) throw new Error((await res.json() as { error?: string }).error ?? res.statusText);
     const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
     let buffer = '';
@@ -469,8 +492,11 @@ function showStart(recent: string[], error = ''): void {
   ($('start') as HTMLElement).hidden = false;
   (document.querySelector('main') as HTMLElement).hidden = true;
   $('export').hidden = true;
-  $('pick').hidden = !desktop;
-  $('drop-hint').textContent = desktop ? 'or drop a folder here (or onto the window, any time)' : 'In a browser, type the folder path below. The desktop app also opens a folder picker and takes dropped folders.';
+  $('pick').hidden = !desktop && !web;
+  $('path-form').hidden = web;
+  $('recent-block').hidden = web;
+  if (web) $('start-intro').textContent = 'A folder with Spine JSON exports (with their .atlas and page images), sprite sheets and fonts. It is read in this page, nothing is uploaded; the export downloads as a zip. KTX2 needs the desktop app.';
+  $('drop-hint').textContent = desktop || web ? 'or drop a folder here (or onto the window, any time)' : 'In a browser, type the folder path below. The desktop app also opens a folder picker and takes dropped folders.';
   $('start-error').textContent = error;
   $('recent').replaceChildren(...(recent.length ? recent.map((dir) => {
     const b = h('button', { textContent: dir, title: dir });
@@ -486,10 +512,10 @@ function resetProject(): void {
 }
 
 async function openProject(dir: string): Promise<void> {
-  const res = await fetch('/api/open', { method: 'POST', body: JSON.stringify({ dir }) });
+  const res = await api('/api/open', { method: 'POST', body: JSON.stringify({ dir }) });
   const body = await res.json() as { project?: string; error?: string; select?: string | null };
   if (!res.ok) {
-    const state = await (await fetch('/api/state')).json() as { recent: string[] };
+    const state = await (await api('/api/state')).json() as { recent: string[] };
     showStart(state.recent, body.error ?? res.statusText);
     return;
   }
@@ -505,9 +531,59 @@ async function showProject(select: string | null = null): Promise<void> {
   await refresh();
 }
 
+/** Folder contents to skip on the website: hidden files, installed packages, the previous export. */
+const SKIP = /(^|\/)(\.[^/]*|node_modules|tabula-export)(\/|$)/;
+
+/** Website: load a picked or dropped folder (paths relative to it) and show it. */
+async function openWebProject(name: string, files: [string, File][]): Promise<void> {
+  $('status').textContent = `Reading ${name}…`;
+  try {
+    await openWebFolder(name, files.filter(([path]) => !SKIP.test(path)));
+  } catch (err) {
+    showStart([], (err as Error).message);
+    return;
+  }
+  $('status').textContent = '';
+  await showProject();
+}
+
+/** Website: the folder picker (an <input webkitdirectory>, which every current browser has). */
+function pickWebFolder(): void {
+  const input = h('input', { type: 'file', multiple: true });
+  input.webkitdirectory = true;
+  input.onchange = () => {
+    const files = [...(input.files ?? [])];
+    if (!files.length) return;
+    const name = files[0]!.webkitRelativePath.split('/')[0]!;
+    void openWebProject(name, files.map((f) => [f.webkitRelativePath.slice(name.length + 1), f]));
+  };
+  input.click();
+}
+
+/** Website: every file under a dropped folder, relative to it. */
+async function readDropped(entry: FileSystemDirectoryEntry): Promise<[string, File][]> {
+  const out: [string, File][] = [];
+  const walk = async (dir: FileSystemDirectoryEntry, prefix: string): Promise<void> => {
+    const reader = dir.createReader();
+    for (;;) {
+      const batch = await new Promise<FileSystemEntry[]>((ok, fail) => reader.readEntries(ok, fail));
+      if (!batch.length) break;
+      for (const e of batch) {
+        const path = `${prefix}${e.name}`;
+        if (SKIP.test(path)) continue;
+        if (e.isDirectory) await walk(e as FileSystemDirectoryEntry, `${path}/`);
+        else out.push([path, await new Promise<File>((ok, fail) => (e as FileSystemFileEntry).file(ok, fail))]);
+      }
+    }
+  };
+  await walk(entry, '');
+  return out;
+}
+
 async function chooseFolder(): Promise<void> {
+  if (web) return pickWebFolder();
   if (!desktop) {
-    const state = await (await fetch('/api/state')).json() as { recent: string[] };
+    const state = await (await api('/api/state')).json() as { recent: string[] };
     showStart(state.recent);
     return;
   }
@@ -516,13 +592,17 @@ async function chooseFolder(): Promise<void> {
 }
 
 async function boot(): Promise<void> {
-  const state = await (await fetch('/api/state')).json() as { project: string | null; recent: string[]; select: string | null };
+  if (!desktop && !(await hasServer())) {
+    web = true;
+    api = webFetch;
+  }
+  const state = await (await api('/api/state')).json() as { project: string | null; recent: string[]; select: string | null };
   if (state.project) await showProject(state.select ? `bundle:${state.select}` : null);
   else showStart(state.recent);
 }
 
 async function refresh(): Promise<void> {
-  const res = await fetch('/api/project');
+  const res = await api('/api/project');
   if (res.status === 409) return boot();
   project = await res.json() as AppProject;
   if (!compress.size) for (const s of project.skeletons) compress.add(s.name);
@@ -555,6 +635,15 @@ document.addEventListener('drop', (e) => {
   document.body.classList.remove('dragging');
   const file = e.dataTransfer?.files[0];
   if (!file) return;
+  if (web) {
+    const entry = e.dataTransfer?.items[0]?.webkitGetAsEntry();
+    if (!entry?.isDirectory) {
+      $('status').textContent = 'Drop the project folder, not single files.';
+      return;
+    }
+    void readDropped(entry as FileSystemDirectoryEntry).then((files) => openWebProject(entry.name, files), showError);
+    return;
+  }
   if (!desktop) {
     $('status').textContent = 'Dropping folders works in the desktop app; here, type the folder path.';
     void chooseFolder();
@@ -562,5 +651,6 @@ document.addEventListener('drop', (e) => {
   }
   void openProject(desktop.pathForFile(file));
 });
+initDrawers();
 desktop?.onProjectOpened(() => void showProject());
 void boot().catch(showError);

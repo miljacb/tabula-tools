@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import { createAppHandler } from '../src/cli/app/server.js';
+// @ts-expect-error plain JS build plugin
+import { browserShims } from './web/browser-shims.mjs';
 
 /**
  * The Tabula app page. `pnpm app` serves it with the project API on
@@ -18,8 +20,12 @@ export default defineConfig({
       server.middlewares.use(createAppHandler({ projectDir, outDir }));
     },
   }],
+  // Served at /exporter/ next to the tools site (dist-web/); the API stays at /api/.
+  base: '/exporter/',
+  // The web exporter's worker runs the engine with browser shims (app/web/).
+  worker: { format: 'es', plugins: () => [browserShims()] },
   // One Pixi for the app and the tabula-pixi runtime.
   resolve: { dedupe: ['pixi.js'] },
-  server: { port: 43301 },
+  server: { port: 43301, strictPort: true },
   build: { outDir: resolve(__dirname, '../dist-app'), emptyOutDir: true },
 });

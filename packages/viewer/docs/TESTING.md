@@ -41,4 +41,4 @@ Make one with `tabula app` (Export) or `exportProject`, then:
 ## Build
 
 - `pnpm build` emits `dist/` with a `pixi` chunk and a `tabula` chunk.
-- `netlify.toml` publishes `dist/`.
+- The root `netlify.toml` publishes it under `/viewer/` (`pnpm build:web`).

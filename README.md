@@ -38,8 +38,9 @@ pnpm test             # vitest, against the installed tabula-pixi
 pnpm typecheck
 pnpm lint
 pnpm run docs     # docs/reference/export.md from the TSDoc (`run`: pnpm has its own `docs`)
-pnpm app          # app dev server on tests/assets
-pnpm desktop      # Electron app
+pnpm dev          # tools homepage + viewer dev servers (http://localhost:5173/)
+pnpm app          # exporter dev server on tests/assets (/exporter/)
+pnpm desktop      # Electron app, opens the tools homepage
 pnpm report:ktx         # KTX2 encode quality (needs ktx)
 ```
 

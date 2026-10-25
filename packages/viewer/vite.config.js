@@ -7,8 +7,11 @@ const isolationHeaders = {
 };
 
 export default defineConfig({
+  // Served under /viewer/ on the tools site (see the root netlify.toml).
+  base: '/viewer/',
   resolve: { dedupe: ['pixi.js'] },
-  server: { headers: isolationHeaders },
+  // Fixed port: the homepage dev server (packages/site) proxies /viewer/ here.
+  server: { port: 5181, strictPort: true, headers: isolationHeaders },
   preview: { headers: isolationHeaders },
   build: {
     rollupOptions: {

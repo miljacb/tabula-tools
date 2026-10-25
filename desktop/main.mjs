@@ -1,7 +1,7 @@
 /**
- * Tabula desktop app (Electron). The main process runs the app server
+ * Tabula Tools desktop app (Electron). The main process runs the app server
  * (dist/cli/app, the same one as `tabula app`) on 127.0.0.1 with a free
- * port and shows its page in a window. preload.cjs gives the page the folder
+ * port and shows the tools homepage in a window; the tools are its subpages. preload.cjs gives the page the folder
  * picker and the paths of dropped folders.
  *
  * Run: pnpm desktop. Package: pnpm desktop:dist.
@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
+const icon = join(here, 'icons', 'icon.png');
 
 // The KTX2 encoder and its cache live in the user's app data, not in the (read-only) app bundle.
 process.env.TABULA_CACHE_DIR ??= join(app.getPath('userData'), 'cache');
@@ -29,7 +30,10 @@ async function openFromMenu() {
   if (!dir) return;
   try {
     await server.handler.open(dir);
-    win?.webContents.send('project-opened', dir);
+    // The exporter picks the project up live; from the homepage or another tool, go to it.
+    const exporter = `${server.url}exporter/`;
+    if (win?.webContents.getURL().startsWith(exporter)) win.webContents.send('project-opened', dir);
+    else await win?.loadURL(exporter);
   } catch (err) {
     dialog.showErrorBox('Cannot open the folder', err.message);
   }
@@ -48,7 +52,7 @@ function buildMenu() {
 
 async function createWindow() {
   win = new BrowserWindow({
-    width: 1400, height: 900, minWidth: 900, minHeight: 600, title: 'Tabula', show: false,
+    width: 1400, height: 900, minWidth: 900, minHeight: 600, title: 'Tabula Tools', show: false, icon,
     webPreferences: { preload: join(here, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false },
   });
   // Links to other sites open in the browser, never in the app window.
@@ -68,6 +72,8 @@ app.whenReady().then(async () => {
   const folder = process.argv.slice(app.isPackaged ? 1 : 2).find((a) => !a.startsWith('-'));
   server = await startAppServer({ port: 0, projectDir: folder, recentFile: join(app.getPath('userData'), 'recent.json') });
   ipcMain.handle('tabula:open-folder', () => chooseFolder());
+  // Packaged builds get the icon from electron-builder; this covers `pnpm desktop` (the dock shows Electron's otherwise).
+  if (process.platform === 'darwin' && !app.isPackaged) app.dock.setIcon(icon);
   buildMenu();
   await createWindow();
   app.on('activate', () => {

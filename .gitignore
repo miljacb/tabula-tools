@@ -4,3 +4,5 @@ dist-app/
 dist-desktop/
 .DS_Store
 *.log
+dist-web/
+packages/site/docs/
