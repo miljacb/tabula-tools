@@ -25,7 +25,7 @@ export interface AppServerStartOptions {
   outDir?: string;
   /** Port (default 43300; 0 = any free port). */
   port?: number;
-  /** Recent projects file (default `~/.tbin/recent.json`). */
+  /** Recent projects file (default `~/.tabula/recent.json`). */
   recentFile?: string;
 }
 

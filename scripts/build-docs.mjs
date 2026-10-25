@@ -186,7 +186,7 @@ function page({ title, description, path, body, current }) {
       <a href="/exporter/">Exporter ${arrowSe}</a>
       <a href="/docs/"${current ? '' : ' aria-current="page"'}>Docs ${arrowSe}</a>
     </nav>
-    <a class="button header-cta" href="https://tabula-studio.nsftx-0693.chatgpt.site/">Open Studio ${arrowNe}</a>
+    <a class="button header-cta" href="">Open Studio ${arrowNe}</a>
   </header>
   <div class="docs-layout">
     <aside class="docs-nav" aria-label="Docs">${sidebar(current)}</aside>

@@ -11,7 +11,9 @@ import { browserShims } from './web/browser-shims.mjs';
  */
 export default defineConfig({
   root: resolve(__dirname),
-  plugins: [{
+  // The shims also go here: in dev the worker's modules are served by the page's pipeline,
+  // which ignores worker.plugins. They only rewrite imports made from src/.
+  plugins: [browserShims(), {
     name: 'tabula-app-api',
     configureServer(server) {
       const projectDir = process.env.TABULA_PROJECT ?? resolve(__dirname, '../tests/assets');

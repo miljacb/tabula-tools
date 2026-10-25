@@ -13,7 +13,7 @@ async function browserDecode(bytes:Uint8Array):Promise<Rgba>{
  try{const canvas=new OffscreenCanvas(bitmap.width,bitmap.height),ctx=canvas.getContext('2d',{willReadFrequently:true})!;ctx.drawImage(bitmap,0,0);const image=ctx.getImageData(0,0,bitmap.width,bitmap.height);return {width:image.width,height:image.height,data:new Uint8Array(image.data.buffer)};}
  finally{bitmap.close();}
 }
-export async function decodeBytes(bytes:Uint8Array):Promise<Rgba>{return (isPng(bytes)?decodePng(bytes):null)??browserDecode(bytes);}
+async function decodeBytes(bytes:Uint8Array):Promise<Rgba>{return (isPng(bytes)?decodePng(bytes):null)??browserDecode(bytes);}
 async function encodeWebp(image:Rgba,quality:number,lossless:boolean):Promise<Uint8Array>{
  const data={data:new Uint8ClampedArray(image.data.buffer as ArrayBuffer,image.data.byteOffset,image.data.byteLength),width:image.width,height:image.height,colorSpace:'srgb'} as ImageData;
  return new Uint8Array(await encodeWebpWasm(data,lossless?{lossless:1,quality:75,method:6,exact:0}:{quality,method:6,alpha_quality:100}));

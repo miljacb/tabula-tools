@@ -30,7 +30,7 @@ export interface AppServerOptions {
   projectDir?: string;
   /** Export folder of `projectDir` (default `<project>/tabula-export`; other projects always use that). */
   outDir?: string;
-  /** Where the recent projects are kept (default `~/.tbin/recent.json`). */
+  /** Where the recent projects are kept (default `~/.tabula/recent.json`). */
   recentFile?: string;
 }
 
@@ -47,7 +47,7 @@ const MAX_RECENT = 10;
 /** The request handler of the app (see the module comment). */
 export function createAppHandler(options: AppServerOptions = {}): AppHandler {
   const initial = options.projectDir ? resolve(options.projectDir) : null;
-  const recentFile = options.recentFile ?? join(homedir(), '.tbin', 'recent.json');
+  const recentFile = options.recentFile ?? join(homedir(), '.tabula', 'recent.json');
   let projectDir: string | null = null;
   /** A `.tbla` opened directly: the page selects it. */
   let selectBundle: string | null = null;

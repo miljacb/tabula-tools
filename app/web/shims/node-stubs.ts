@@ -7,5 +7,3 @@ export const fileURLToPath=(url:string|URL)=>new URL(String(url)).pathname;
 export const promisify=<T extends (...args:never[])=>unknown>(fn:T)=>fn;
 export const execFile=unavailable('ktx'),execFileSync=unavailable('ktx'),spawn=unavailable('ktx');
 export const createHash=unavailable('KTX2 cache'),createRequire=unavailable('require');
-const stubs={tmpdir,fileURLToPath,promisify,execFile,execFileSync,spawn,createHash,createRequire};
-export default stubs;

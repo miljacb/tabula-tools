@@ -16,14 +16,13 @@ export const memfs={
  list(dir:string){const prefix=key(dir)+'/';return [...files.keys()].filter(n=>n.startsWith(prefix)).map(n=>n.slice(prefix.length)).sort();},
  clear(){files.clear();},
 };
-class Dirent{constructor(readonly name:string,private dir:boolean){}isDirectory(){return this.dir;}isFile(){return !this.dir;}isSymbolicLink(){return false;}}
-class Stats{constructor(readonly size:number,private dir:boolean){}isDirectory(){return this.dir;}isFile(){return !this.dir;}isSymbolicLink(){return false;}}
+class Dirent{constructor(readonly name:string,private dir:boolean){}isDirectory(){return this.dir;}isFile(){return !this.dir;}}
+class Stats{constructor(readonly size:number,private dir:boolean){}isDirectory(){return this.dir;}isFile(){return !this.dir;}}
 export function existsSync(path:string){const k=key(path);return files.has(k)||isDir(k);}
 export async function readFile(path:string,options?:string|{encoding?:string}){const data=memfs.read(path),encoding=typeof options==='string'?options:options?.encoding;return encoding?decoder.decode(data):data;}
 export async function writeFile(path:string,data:Bytes){memfs.write(path,data);}
 export async function mkdir(){return undefined;}
 export async function stat(path:string){const k=key(path),data=files.get(k);if(data)return new Stats(data.length,false);if(isDir(k))return new Stats(0,true);throw enoent(path);}
-export const lstat=stat;
 export async function readdir(path:string,options?:{withFileTypes?:boolean}){
  const k=key(path),prefix=k==='/'?'/':k+'/',seen=new Map<string,boolean>();
  for(const name of files.keys())if(name.startsWith(prefix)){const rest=name.slice(prefix.length),slash=rest.indexOf('/');seen.set(slash<0?rest:rest.slice(0,slash),slash>=0||seen.get(rest)===true);}
@@ -32,6 +31,4 @@ export async function readdir(path:string,options?:{withFileTypes?:boolean}){
 }
 export async function rm(path:string){const k=key(path),prefix=k+'/';files.delete(k);for(const name of [...files.keys()])if(name.startsWith(prefix))files.delete(name);}
 const unavailable=(name:string)=>async()=>{throw Error(`${name} is not available in the browser export`);};
-export const mkdtemp=unavailable('mkdtemp'),chmod=unavailable('chmod'),copyFile=unavailable('copyFile'),rename=unavailable('rename'),symlink=unavailable('symlink'),access=unavailable('access');
-const fs={existsSync,promises:{readFile,writeFile,mkdir,stat,lstat,readdir,rm}};
-export default fs;
+export const mkdtemp=unavailable('mkdtemp'),chmod=unavailable('chmod'),copyFile=unavailable('copyFile'),rename=unavailable('rename'),symlink=unavailable('symlink');
