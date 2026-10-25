@@ -36,6 +36,9 @@ input:is([type='checkbox'], [type='range']) {
 }
 
 .app-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   color: var(--accent);
   text-decoration: none;
   font-size: 16px;
@@ -46,7 +49,20 @@ input:is([type='checkbox'], [type='range']) {
 .app-brand > span {
   color: var(--text);
   font-size: 12px;
-  font-weight: 400;
+  font-weight: 600;
+}
+
+.app-brand:hover > span {
+  color: var(--accent-hover);
+}
+
+.app-brand-mark {
+  display: block;
+  width: 24px;
+  height: 22px;
+  object-fit: contain;
+  flex: none;
+  user-select: none;
 }
 
 .app-header-actions {
@@ -316,14 +332,6 @@ button:disabled {
     linear-gradient(-45deg, transparent 75%, #363636 75%);
   background-size: 20px 20px;
   background-position: 0 0, 0 10px, 10px -10px, -10px 0;
-}
-
-#drop-hint {
-  border: 1px dashed rgba(210, 255, 0, 0.45);
-  border-radius: var(--radius);
-  background: rgba(32, 32, 32, 0.6);
-  color: var(--muted);
-  font-weight: 400;
 }
 
 /* ── Dialogs ────────────────────────────────────────────── */

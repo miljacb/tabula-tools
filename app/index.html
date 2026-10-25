@@ -5,40 +5,57 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tabula Exporter</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600&display=swap">
   <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="../packages/ui/chrome.css">
 </head>
 <body>
   <header class="app-header">
-    <a class="app-brand" href="/" title="All tools">Tabula <span>Exporter</span></a>
-    <span id="project-path" class="muted"></span>
+    <a class="app-brand" href="/" title="All tools"><img class="app-brand-mark" src="./tools-logo.svg" width="24" height="22" alt="" aria-hidden="true" draggable="false"><span>Tabula Exporter</span></a>
+    <span id="project-path" class="app-part"></span>
     <span class="spacer"></span>
-    <span id="status" class="muted"></span>
     <div class="app-header-actions">
       <button id="open" class="header-btn" type="button" title="Open another project folder"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>Open</button>
-      <button id="export" class="primary" type="button" hidden title="Compress the checked skeletons and write the export folder with its manifest">Export</button>
+      <button id="export" class="primary" type="button" hidden title="Compress the checked skeletons and write the export folder with its manifest"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2Z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/></svg>Export</button>
+      <span class="header-sep" aria-hidden="true"></span>
+      <div class="action-menu" id="action-menu">
+        <button id="action-menu-trigger" class="header-icon" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="More" title="More"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg></button>
+        <div id="action-menu-panel" class="action-menu-panel" role="menu" hidden>
+          <div id="menu-recent" hidden></div>
+          <a href="/docs/app.html" target="_blank" rel="noopener" role="menuitem">Exporter guide</a>
+          <a href="/docs/export-format.html" target="_blank" rel="noopener" role="menuitem">Export format</a>
+          <a href="/" role="menuitem">All tools</a>
+          <hr>
+          <button id="btn-clear-saved" type="button" role="menuitem" class="menu-danger" title="Forget the saved export preset and panel layout in this browser. Project files are not touched.">Clear saved settings</button>
+        </div>
+      </div>
     </div>
   </header>
-  <section id="start" hidden>
+  <section id="start">
     <div class="start-card">
-      <p class="eyebrow">Tabula Exporter</p>
-      <h1>Open a project</h1>
-      <p class="muted" id="start-intro">A folder with Spine JSON exports (with their .atlas and page images), sprite sheets and fonts. The export goes to <code>tabula-export</code> inside it.</p>
+      <p class="eyebrow"><i class="live-dot" aria-hidden="true"></i>Tabula Exporter</p>
+      <h1>Open a <em>project</em></h1>
+      <p class="start-tags"><span>Compress</span><span>Pack</span><span>Manifest</span></p>
+      <p class="start-intro" id="start-intro">A folder with Spine JSON exports (with their .atlas and page images), sprite sheets and fonts. It is read in this page, nothing is uploaded; the export downloads as a zip. KTX2 needs the desktop app.</p>
       <div id="drop" class="drop">
+        <svg class="drop-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg>
         <button id="pick" class="primary" type="button">Open folder…</button>
-        <span class="muted" id="drop-hint">or drop a folder here</span>
+        <span class="drop-hint" id="drop-hint">or drop a folder here (or onto the window, any time)</span>
       </div>
-      <form id="path-form" class="path-form">
+      <form id="path-form" class="path-form" hidden>
         <input id="path-input" type="text" placeholder="/path/to/assets" spellcheck="false" aria-label="Folder path">
         <button type="submit">Open</button>
       </form>
       <p id="start-error" class="error"></p>
-      <div id="recent-block">
+      <div id="recent-block" class="recent-block" hidden>
         <h2>Recent</h2>
         <ul id="recent" class="recent"></ul>
       </div>
     </div>
   </section>
-  <main class="shell">
+  <main class="shell" hidden>
     <nav class="tool-rail" aria-label="Tools">
       <button class="rail-tool" type="button" data-tool="assets" data-drawer="left" title="Assets" aria-label="Assets" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m3 13 9 5 9-5"/></svg></button>
       <hr>
@@ -51,7 +68,17 @@
       <div class="dock-scroll" id="assets" aria-label="Assets"></div>
     </aside>
     <section class="stage-card" id="detail-pane">
-      <div class="stage-toolbar"><h2 id="stage-title">Details</h2></div>
+      <div class="stage-toolbar">
+        <h2 id="stage-title">Preview</h2>
+        <span class="spacer"></span>
+        <label>Animation <select id="animation"></select></label>
+        <label title="The resolution tier the game would load. The game picks it; this previews each.">Tier <select id="tier"><option value="1">1x</option></select></label>
+      </div>
+      <div id="stage">
+        <div class="stage-label left" id="label-left"></div>
+        <div class="stage-label right" id="label-right"></div>
+        <div id="stage-empty" class="muted">Select a skeleton</div>
+      </div>
       <div id="details"></div>
     </section>
     <aside class="dock right-drawer" id="right-stack">
@@ -63,6 +90,11 @@
       </div>
     </aside>
   </main>
+  <div id="banner" role="status" aria-live="polite" hidden>
+    <p id="banner-text"></p>
+    <div id="banner-actions"></div>
+    <button id="banner-close" type="button">Close</button>
+  </div>
   <script type="module" src="./main.ts"></script>
 </body>
 </html>

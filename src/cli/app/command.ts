@@ -27,6 +27,8 @@ export interface AppServerStartOptions {
   port?: number;
   /** Recent projects file (default `~/.tabula/recent.json`). */
   recentFile?: string;
+  /** Called with the recent projects whenever they change. */
+  onRecent?: (recent: string[]) => void;
 }
 
 /** Options for {@link appCommand}. */
@@ -50,7 +52,7 @@ export async function startAppServer(options: AppServerStartOptions = {}): Promi
   if (!pageDir) throw new Error('The exporter page is not built: run "pnpm app:build" in the tabula-tools package');
   const siteDir = findBuildDir('dist-web');
   if (!siteDir) throw new Error('The tools site is not built: run "pnpm build:web" in the tabula-tools package');
-  const handler = createAppHandler({ projectDir: options.projectDir, outDir: options.outDir, recentFile: options.recentFile });
+  const handler = createAppHandler({ projectDir: options.projectDir, outDir: options.outDir, recentFile: options.recentFile, onRecent: options.onRecent });
   const server = createServer((req, res) => {
     handler(req, res, () => {
       let path: string;

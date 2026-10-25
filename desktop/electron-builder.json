@@ -27,7 +27,19 @@
     "target": [
       "dmg"
     ],
-    "category": "public.app-category.developer-tools"
+    "category": "public.app-category.developer-tools",
+    "extendInfo": {
+      "CFBundleDocumentTypes": [
+        {
+          "CFBundleTypeName": "Folder",
+          "CFBundleTypeRole": "Viewer",
+          "LSHandlerRank": "Alternate",
+          "LSItemContentTypes": [
+            "public.folder"
+          ]
+        }
+      ]
+    }
   },
   "win": {
     "target": [

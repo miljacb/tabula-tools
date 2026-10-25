@@ -54,12 +54,21 @@ export async function downloadExport(): Promise<{ name: string; blob: Blob }> {
 }
 
 /** `fetch` for the page's /api/ requests (see server.ts for what each one returns). */
-export async function webFetch(url: string, init: RequestInit = {}): Promise<Response> {
+export async function webFetch(href: string, init: RequestInit = {}): Promise<Response> {
+  const { pathname: url, searchParams } = new URL(href, 'http://local');
   const body = typeof init.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : {};
   try {
     if (url === '/api/state') return json({ project: folder, recent: [], select: null });
     if (!folder) return json({ error: 'No project is open' }, 409);
     if (url === '/api/project') return json(await call({ op: 'project' }));
+    if (url === '/api/files') return json(await call({ op: 'files' }));
+    if (url === '/api/file') {
+      try {
+        return new Response(await call<Blob>({ op: 'file', root: searchParams.get('root') === 'out' ? 'out' : 'src', path: searchParams.get('path') ?? '' }));
+      } catch (err) {
+        return json({ error: (err as Error).message }, 404);
+      }
+    }
     if (url === '/api/config') return json(await call({ op: 'config', config: body }));
     if (url === '/api/export') {
       // NDJSON as the server streams it: the events, then done or failed.
@@ -67,7 +76,7 @@ export async function webFetch(url: string, init: RequestInit = {}): Promise<Res
       const stream = new ReadableStream<Uint8Array>({
         start(controller) {
           const line = (value: unknown): void => controller.enqueue(encoder.encode(`${JSON.stringify(value)}\n`));
-          call({ op: 'export', compress: body.compress as string[] | undefined }, line).then(
+          call({ op: 'export', compress: body.compress as string[] | undefined, skeletons: body.skeletons as string[] | undefined }, line).then(
             (report) => line({ type: 'done', report }),
             (err: Error) => line({ type: 'failed', error: err.message }),
           ).finally(() => controller.close());

@@ -6,8 +6,10 @@ export type WebRequest = { id: number } & (
   | { op: 'load'; name: string; files: [string, Blob][] }
   | { op: 'project' }
   | { op: 'config'; config: TabulaProjectConfig }
-  | { op: 'export'; compress?: string[] }
+  | { op: 'export'; compress?: string[]; skeletons?: string[] }
   | { op: 'download' }
+  | { op: 'files' }
+  | { op: 'file'; root: 'src' | 'out'; path: string }
 );
 
 /** A result (`value`), a failure (`error`), or an export event on the way (`event`). */

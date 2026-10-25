@@ -1,3 +1,4 @@
+import { chooseItems, sizeLabel } from '../../../ui/chooser.ts';
 import { DEFAULT_GRID_SIZE, DRAWER_STORAGE_KEY, MANUAL_TAB_STORAGE_KEY, OUTLINER_STORAGE_KEY, SIMPLE_MODE_STORAGE_KEY, SCREEN_STORAGE_KEY, UI_STORAGE_KEY } from '../constants.js';
 import { applySlotHighlight, clearSlotHighlight, disposeSlotHighlight, selectionMarksVisible } from '../features/highlight.js';
 import { applySlotVisibility } from '../features/slotVisibility.js';
@@ -176,8 +177,9 @@ function tick(dt) {
 
 /**
  * @param {File[]} files
+ * @param {{ choose?: boolean }} [options] choose: a drop with several skeletons asks which to add (default true)
  */
-export async function importFiles(files) {
+export async function importFiles(files, { choose = true } = {}) {
   if (hasPackageFiles(files)) {
     await importPackage(files);
     return;
@@ -187,10 +189,28 @@ export async function importFiles(files) {
     showBanner('Drop a .json skeleton with its .atlas and images, or a .tbla export (or assets.manifest.json with its files).');
     return;
   }
+  // A large drop: pick which skeletons go on the stage (filter, checkboxes).
+  let chosen = skeletons;
+  if (choose && skeletons.length > 1) {
+    const names = await chooseItems({
+      title: 'Open skeletons',
+      label: `${skeletons.length} skeletons in the drop. The ticked ones go on the stage.`,
+      items: skeletons.map((file) => {
+        const path = packagePath(file);
+        const slash = path.lastIndexOf('/');
+        const folder = slash > 0 ? `${path.slice(0, slash)} · ` : '';
+        return { name: path, label: path.slice(slash + 1).replace(/\.json$/i, ''), meta: `${folder}${sizeLabel(file.size)}` };
+      }),
+      action: 'Add to stage',
+    });
+    if (!names) return;
+    const keep = new Set(names);
+    chosen = skeletons.filter((file) => keep.has(packagePath(file)));
+  }
   if (!isHistoryApplying()) recordHistory();
   scene.playing = false;
   for (const inst of scene.instances) inst.playing = false;
-  for (const file of skeletons) {
+  for (const file of chosen) {
     try {
       await addSkeletonFile(file, atlases, images);
     } catch (error) {
@@ -753,7 +773,7 @@ export async function loadSamples() {
       files.push(new File([blob], `${name}.${ext}`, { type: blob.type }));
     }
   }
-  await importFiles(files);
+  await importFiles(files, { choose: false });
 }
 
 export function fitSelection() {

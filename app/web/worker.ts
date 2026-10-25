@@ -49,9 +49,13 @@ async function handle(request: WebRequest, event: (e: ExportEvent) => void): Pro
       const { config, asked } = withoutKtx2(await loadProjectConfig(ROOT));
       if (asked) event({ type: 'warning', message: 'KTX2 pages need the desktop app: exported as images only.' });
       await rm(OUT); // the download holds this export only
-      const report = await exportProject({ sourceDir: ROOT, outDir: OUT, cacheDir: '/cache', config, compress: request.compress, onEvent: event, encodeKtx2: async () => null });
+      const report = await exportProject({ sourceDir: ROOT, outDir: OUT, cacheDir: '/cache', config, compress: request.compress, skeletons: request.skeletons, onEvent: event, encodeKtx2: async () => null });
       return { ...report, manifest: undefined };
     }
+    case 'files':
+      return memfs.list(OUT);
+    case 'file':
+      return new Blob([memfs.read(`${request.root === 'out' ? OUT : ROOT}/${request.path}`).slice()]);
     case 'download': {
       // The export folder plus the settings, laid out as in the project folder.
       const entries: Zippable = {};

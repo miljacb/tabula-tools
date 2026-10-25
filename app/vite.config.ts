@@ -2,6 +2,8 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import { createAppHandler } from '../src/cli/app/server.js';
 // @ts-expect-error plain JS build plugin
+import { sharedStyles } from '../packages/ui/vite-plugin.mjs';
+// @ts-expect-error plain JS build plugin
 import { browserShims } from './web/browser-shims.mjs';
 
 /**
@@ -13,7 +15,7 @@ export default defineConfig({
   root: resolve(__dirname),
   // The shims also go here: in dev the worker's modules are served by the page's pipeline,
   // which ignores worker.plugins. They only rewrite imports made from src/.
-  plugins: [browserShims(), {
+  plugins: [sharedStyles(), browserShims(), {
     name: 'tabula-app-api',
     configureServer(server) {
       const projectDir = process.env.TABULA_PROJECT ?? resolve(__dirname, '../tests/assets');
@@ -27,7 +29,8 @@ export default defineConfig({
   // The web exporter's worker runs the engine with browser shims (app/web/).
   worker: { format: 'es', plugins: () => [browserShims()] },
   // One Pixi for the app and the tabula-pixi runtime.
-  resolve: { dedupe: ['pixi.js'] },
+  // The preview reuses the Tabula Viewer's loaders (types in app/tabula-viewer.d.ts).
+  resolve: { dedupe: ['pixi.js'], alias: { 'tabula-viewer': resolve(__dirname, '../packages/viewer/src') } },
   server: { port: 43301, strictPort: true },
   build: { outDir: resolve(__dirname, '../dist-app'), emptyOutDir: true },
 });

@@ -1,4 +1,5 @@
 import { GRID_SIZES, MASK_COLORS, OUTLINER_STORAGE_KEY, TRACK_COLORS, TRACK_COUNT, ZOOM_STEP } from '../constants.js';
+import { bindRecent } from './recent.js';
 import { setOnDoublePick, setOnEmptyClick } from '../composer/input.js';
 import { liveSkeletonBounds, formatDimension } from '../features/bounds.js';
 import { countSceneDraws, getGpuTextureUnits, getTextureUnits, marginalAtlasBytesForInstance, measureInstance, sceneAtlasMemorySummary, setTextureUnits, sumPerf } from '../features/perf.js';
@@ -299,7 +300,8 @@ function bindChrome() {
     void clearAllBrowserData();
   });
   document.getElementById('btn-open')?.addEventListener('click', () => document.getElementById('file-scene')?.click());
-  document.getElementById('btn-import')?.addEventListener('click', () => document.getElementById('file-assets')?.click());
+  document.getElementById('start-full')?.addEventListener('click', () => document.getElementById('simple-exit')?.click());
+  bindRecent({ fallbackInput: () => document.getElementById('file-assets')?.click(), report: (message) => showBanner(message) });
   document.getElementById('file-assets')?.addEventListener('change', (event) => {
     const input = /** @type {HTMLInputElement} */ (event.target);
     void importFiles([...(input.files || [])]);
@@ -706,9 +708,9 @@ function render() {
     const picks = selectedInstances().length ? selectedInstances() : scene.instances;
     setup.disabled = !picks.length || picks.every((item) => item.holdSetup && !item.playing);
   }
-  document.getElementById('drop-hint')?.toggleAttribute('hidden', scene.instances.length > 0);
+  document.getElementById('start')?.toggleAttribute('hidden', scene.instances.length > 0);
   // The drop screen just went away: start with the whole screen frame in view, not wherever assets landed.
-  if (!hadInstances && scene.instances.length) showScreenFrame();
+  if (!hadInstances && scene.instances.length) requestAnimationFrame(showScreenFrame);
   hadInstances = scene.instances.length > 0;
   scheduleSceneList();
   renderAnimations(inst);

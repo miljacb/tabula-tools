@@ -11,6 +11,10 @@ import type { AppProject } from '../src/cli/app/project.js';
 import type { ExportEvent, ExportReport } from '../src/export/export-project.js';
 import type { TabulaProjectConfig } from '../src/export/config.js';
 import { initDrawers, showTool } from './drawers.js';
+import { clearPreview, idleAnimation, resetPreview, showBundle, showSkeleton, type PreviewFiles } from './preview.js';
+import { bindHoverTips } from './tips.js';
+import { chooseItems, sizeLabel } from '../packages/ui/chooser.js';
+import { addRecent, clearRecent, droppedHandles, grantRead, listRecent, pickFolder, readFolder, recentItems, recentSupported, removeRecent, renderRecentList, renderRecentMenu, type RecentListItem } from '../packages/ui/recent.js';
 import { downloadExport, hasServer, openWebFolder, webFetch } from './web/api.js';
 
 /** export-report.json (`downloads` is missing in reports of older exports). */
@@ -43,12 +47,62 @@ const h = <K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLEle
 };
 const kib = (n: number): string => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
-const TIER_CHOICES = [2, 1, 0.75, 0.5];
+/** Tiers: downscaled copies as in Studio (0.75, 0.5, 0.25). 2× needs `<name>@2x` exports of every skeleton (set it in tabula.config.json); the button only shows while it is on. */
+const TIER_CHOICES = [2, 1, 0.75, 0.5, 0.25];
 
 let project: AppProject;
 let selected: string | null = null;
 const compress = new Set<string>();
 let exporting = false;
+
+// --- preview -------------------------------------------------------------------
+
+/** Project and export files for the preview, through the API (server or web worker). */
+const files: PreviewFiles = {
+  async read(root, path) {
+    const res = await api(`/api/file?root=${root}&path=${encodeURIComponent(path)}`);
+    if (!res.ok) throw new Error((await res.json() as { error?: string }).error ?? `${path}: ${res.statusText}`);
+    return new Uint8Array(await res.arrayBuffer());
+  },
+  async list() {
+    return await (await api('/api/files?root=out')).json() as string[];
+  },
+};
+
+/** Fill the animation picker, keeping the current one when the new list has it. */
+function fillAnimations(names: string[]): void {
+  const anim = $('animation') as HTMLSelectElement;
+  const previous = anim.value;
+  anim.replaceChildren(...names.map((a) => h('option', { value: a, textContent: a })));
+  anim.value = names.includes(previous) ? previous : idleAnimation(names) ?? '';
+  anim.disabled = !names.length;
+}
+
+/** Tiers of the last export (1x when there is none). */
+function renderTierSelect(): void {
+  const tiers = (project.report as Report | null)?.tiers?.map((t) => t.tier) ?? [1];
+  const sel = $('tier') as HTMLSelectElement;
+  const previous = sel.value;
+  sel.replaceChildren(...tiers.map((t) => h('option', { value: String(t), textContent: `${t}x` })));
+  sel.value = tiers.map(String).includes(previous) ? previous : '1';
+  sel.disabled = !project.exported || tiers.length < 2;
+}
+
+function showPreview(): void {
+  const animation = ($('animation') as HTMLSelectElement).value || null;
+  if (selected?.startsWith('bundle:')) {
+    void showBundle(files, selected.slice('bundle:'.length), animation).then((names) => {
+      if (names.length && !names.includes(($('animation') as HTMLSelectElement).value)) fillAnimations(names);
+    });
+    return;
+  }
+  const s = project.skeletons.find((k) => k.name === selected);
+  if (!s) return clearPreview(project.skeletons.length ? 'Select a skeleton' : 'No skeletons in this folder');
+  if (s.errors.length && !s.animations.length) return clearPreview('Cannot be shown: see the errors below');
+  // A new export (its report date) is opened again; source-only until there is one.
+  const exportKey = project.exported ? (project.report as Report | null)?.date ?? 'export' : null;
+  void showSkeleton(files, s, animation, exportKey, Number(($('tier') as HTMLSelectElement).value) || 1, s.bytes);
+}
 
 // --- read ----------------------------------------------------------------------
 
@@ -69,7 +123,11 @@ function renderAssets(): void {
     else for (const s of project.skeletons) compress.add(s.name);
     renderAssets();
   };
-  list.append(h('h2', {}, `Skeletons (${project.skeletons.length})`, all));
+  const choose = h('button', { textContent: 'choose…', title: 'Pick which of the folder\'s skeletons to show and export' });
+  choose.onclick = () => void pickSkeletons().then(async (ok) => {
+    if (ok) await refresh();
+  });
+  list.append(h('h2', {}, included ? `Skeletons (${project.skeletons.length} of ${allSkeletons.length})` : `Skeletons (${project.skeletons.length})`, h('span', { class: 'h2-actions' }, choose, all)));
   for (const s of project.skeletons) {
     const state = exportState(s.name);
     const check = h('input', { type: 'checkbox', checked: compress.has(s.name), title: 'Compress this skeleton on export (unchecked: exported as raw JSON)' });
@@ -228,8 +286,10 @@ function afterAssign(): void {
 
 function select(name: string): void {
   selected = name;
+  if (!name.startsWith('bundle:')) fillAnimations(project.skeletons.find((k) => k.name === name)?.animations ?? []);
   renderAssets();
   renderDetails();
+  showPreview();
 }
 
 // --- produce -------------------------------------------------------------------
@@ -243,7 +303,7 @@ async function saveConfig(next: TabulaProjectConfig): Promise<void> {
   const body = await res.json() as TabulaProjectConfig & { error?: string };
   if (!res.ok) throw new Error(body.error ?? res.statusText);
   project.config = body;
-  $('status').textContent = 'Settings saved. Export to apply them.';
+  status('Settings saved. Export to apply them.');
 }
 
 /** Group colors (stable by position). */
@@ -290,57 +350,159 @@ function renderAssignments(): HTMLElement {
       ...rows)));
 }
 
+/** Studio's export defaults (tabula-studio lib/editor/tabla-settings.ts TABLA_DEFAULTS), as config fields. */
+const DEFAULTS: TabulaProjectConfig = { mode: 'release', format: 'tbla', images: true, tiers: [1], imageFormat: 'webp', quality: 90, ktx2: 'none', bake: { maxError: 0.05 }, atlas: { maxSize: 2048, padding: 2, extrude: 0 } };
+/** The settings a preset carries (not the project's groups). */
+const PRESET_KEY = 'tabula-exporter.preset';
+/** Bake max error presets, named by what they trade (smaller drift = larger data); as in Studio. */
+const MAX_ERRORS: [number, string][] = [[0, 'Lossless'], [0.01, 'Very fine'], [0.02, 'Fine'], [0.05, 'Balanced'], [0.1, 'Coarse'], [0.25, 'Smallest']];
+
+/** Studio's export settings minus the project's groups (loadGroups, atlas.groups): what a preset holds. */
+function presetOf(c: TabulaProjectConfig): TabulaProjectConfig {
+  const { loadGroups: _groups, atlas, ...rest } = c;
+  void _groups;
+  return { ...rest, atlas: atlas && { maxSize: atlas.maxSize, padding: atlas.padding, extrude: atlas.extrude } };
+}
+
+/** Apply settings on top of the project's groups. */
+function withPreset(c: TabulaProjectConfig, preset: TabulaProjectConfig): TabulaProjectConfig {
+  return { ...preset, loadGroups: c.loadGroups, atlas: { ...preset.atlas, groups: c.atlas?.groups } };
+}
+
+function readPreset(): TabulaProjectConfig | null {
+  try {
+    const raw = localStorage.getItem(PRESET_KEY);
+    return raw ? JSON.parse(raw) as TabulaProjectConfig : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A themed range with its value beside the label (Studio's Slider); saves on release. */
+function slider(label: string, title: string, min: number, max: number, value: number, show: (v: number) => string, disabled: boolean, save: (v: number) => void): HTMLElement {
+  const out = h('output', { textContent: show(value) });
+  const input = h('input', { type: 'range', min: String(min), max: String(max), value: String(value), disabled, ariaLabel: label });
+  const fill = (): void => input.style.setProperty('--pct', `${max > min ? ((Number(input.value) - min) / (max - min)) * 100 : 0}%`);
+  fill();
+  input.oninput = () => {
+    out.textContent = show(Number(input.value));
+    fill();
+  };
+  input.onchange = () => save(Number(input.value));
+  return h('label', { class: 'slider', title }, h('span', { class: 'slider-head' }, h('span', { textContent: label }), out), input);
+}
+
+function picker<T extends string | number>(label: string, title: string, options: [T, string][], value: T, disabled: boolean, save: (v: T) => void): HTMLElement {
+  const sel = h('select', { disabled, ariaLabel: label }, ...options.map(([v, text]) => h('option', { value: String(v), textContent: text })));
+  sel.value = String(value);
+  sel.onchange = () => save((typeof value === 'number' ? Number(sel.value) : sel.value) as T);
+  return h('label', { class: 'pick', title }, h('span', { textContent: label }), sel);
+}
+
+function toggle(label: string, title: string, checked: boolean, save: (on: boolean) => void): HTMLElement {
+  const input = h('input', { type: 'checkbox', checked, role: 'switch', ariaLabel: label });
+  input.onchange = () => save(input.checked);
+  return h('div', { class: 'switch-row', title }, h('span', { textContent: label }), h('label', { class: 'switch' }, input, h('i')));
+}
+
+/** The export settings, laid out as Studio's export dialog: common choices up front, the rest under Advanced. */
 function renderSettings(): void {
   const c = config();
-  const tiers = new Set(c.tiers ?? [1]);
-  const tierBoxes = TIER_CHOICES.map((t) => {
-    const box = h('input', { type: 'checkbox', checked: t === 1 || tiers.has(t), disabled: t === 1 });
-    box.onchange = () => {
-      const next = TIER_CHOICES.filter((x) => x === 1 || (x === t ? box.checked : tiers.has(x)));
-      void saveConfig({ ...c, tiers: next }).then(renderSettings, showError);
-    };
-    return h('label', { title: t > 1 ? `Needs <name>@${t}x exports (never upscaled)` : t === 1 ? 'Always exported' : `Pages downscaled to ${t * 100}%` }, box, `${t}x`);
-  });
-  const codec = h('select', {}, ...['none', 'uastc', 'etc1s'].map((v) => h('option', { value: v, textContent: v === 'none' ? 'Off (PNG only)' : v === 'uastc' ? 'UASTC (quality)' : 'ETC1S (small)' })));
-  codec.value = web ? 'none' : c.ktx2 ?? 'none';
-  codec.disabled = web;
-  codec.onchange = () => void saveConfig({ ...c, ktx2: codec.value as TabulaProjectConfig['ktx2'] }).then(renderSettings, showError);
-  const bake = h('input', { type: 'checkbox', checked: c.bake !== false });
-  bake.onchange = () => void saveConfig({ ...c, bake: bake.checked ? {} : false }).then(renderSettings, showError);
+  const set = (patch: Partial<TabulaProjectConfig>): void => void saveConfig({ ...c, ...patch }).then(renderSettings, showError);
+  const atlas = { maxSize: 2048, padding: 2, extrude: 0, ...c.atlas };
+  const setAtlas = (patch: Partial<typeof atlas>): void => set({ atlas: { ...c.atlas, ...patch } });
+  const bake = c.bake === false ? null : c.bake ?? {};
+  const setBake = (patch: { fps?: number; maxError?: number }): void => set({ bake: { ...bake, ...patch } });
+  const tiers = c.tiers ?? [1];
+  const maxSize = atlas.maxSize ?? 2048;
+  const lossy = (c.imageFormat ?? 'auto') !== 'png' && c.imageFormat !== 'webp-lossless';
+  const ktx2 = web ? 'none' : c.ktx2 ?? 'none';
+  const etc1s = ktx2 === 'etc1s';
   const configError = (project.config as { error?: string } | null)?.error;
-  const choice = <K extends 'mode' | 'format'>(key: K, options: [NonNullable<TabulaProjectConfig[K]>, string][]): HTMLSelectElement => {
-    const sel = h('select', {}, ...options.map(([v, label]) => h('option', { value: v, textContent: label })));
-    sel.value = c[key] ?? options[0]![0];
-    sel.onchange = () => void saveConfig({ ...c, [key]: sel.value }).then(renderSettings, showError);
-    return sel;
+
+  const preset = readPreset();
+  const tool = (text: string, title: string, run: () => void): HTMLButtonElement => {
+    const b = h('button', { class: 'mini', type: 'button', textContent: text, title });
+    b.onclick = run;
+    return b;
   };
-  const imagesBox = h('input', { type: 'checkbox', checked: c.images !== false });
-  imagesBox.onchange = () => void saveConfig({ ...c, images: imagesBox.checked }).then(renderSettings, showError);
+  const tools = h('div', { class: 'export-tools' },
+    h('span', { textContent: 'Tabula settings' }),
+    tool('Reset to default', "Studio's defaults; the load groups stay", () => void saveConfig(withPreset(c, DEFAULTS)).then(renderSettings, showError)),
+    preset ? tool('Apply preset', 'The settings saved with Save preset (this browser)', () => void saveConfig(withPreset(c, preset)).then(renderSettings, showError)) : null,
+    tool('Save preset', 'Remember these settings in this browser, for other projects', () => {
+      try {
+        localStorage.setItem(PRESET_KEY, JSON.stringify(presetOf(c)));
+        status('Preset saved.');
+      } catch {
+        /* storage blocked */
+      }
+      renderSettings();
+    }));
+
+  const tierButton = (t: number): HTMLButtonElement => {
+    const on = t === 1 || tiers.includes(t);
+    const b = h('button', { type: 'button', class: 'tier', disabled: t === 1, title: t === 1 ? 'Full resolution, always exported.' : t > 1 ? `${on ? 'Remove' : 'Add'} a ${t}× tier (needs <name>@${t}x exports; never upscaled).` : `${on ? 'Remove' : 'Add'} a ${t}× copy of every page (up to ${Math.round(maxSize * t)} px).` },
+      h('b', { textContent: `${t}×` }), h('small', { textContent: `${Math.round(maxSize * t)}px` }));
+    b.setAttribute('aria-pressed', String(on));
+    b.onclick = () => set({ tiers: (on ? tiers.filter((x) => x !== t) : [...tiers, t]).concat(1).filter((x, i, a) => a.indexOf(x) === i).sort((a, b) => b - a) });
+    return b;
+  };
+
+  const groups = loadGroupNames();
+  const first = c.loadGroups?.defaultGroup ?? 'base';
+  // Unset means none: the engine preloads only what is listed.
+  const preload = c.loadGroups?.preload ?? [];
+  const groupRows = groups.length > 1 ? [
+    h('h4', { textContent: 'Load groups', title: 'The first group loads before anything is shown. Groups with Preload ticked are fetched in the background right after it; the rest only when the game asks for them.' }),
+    h('div', { class: 'group-list' }, ...groups.map((g) => {
+      const count = project.skeletons.filter((k) => loadGroupsOf(k.name)[0] === g).length;
+      let cell: HTMLElement;
+      if (g === first) cell = h('span', { class: 'muted', textContent: 'Loads first', title: 'The default group: loaded first, before the game shows anything.' });
+      else {
+        const box = h('input', { type: 'checkbox', checked: preload.includes(g) });
+        box.onchange = () => set({ loadGroups: { ...c.loadGroups, preload: box.checked ? [...preload, g] : preload.filter((n) => n !== g) } });
+        cell = h('label', { title: `Fetch ${g} in the background right after the first group.` }, box, 'Preload');
+      }
+      return h('div', { class: 'group-row' }, h('span', { textContent: g }), h('span', { class: 'muted', textContent: `${count} skeleton${count === 1 ? '' : 's'}` }), cell);
+    })),
+  ] : [];
+
+  const advanced = h('details', { class: 'advanced' }, h('summary', { textContent: 'Advanced' }), h('div', { class: 'advanced-body' },
+    h('h4', { textContent: 'Bundles' }),
+    h('div', { class: 'settings-row' },
+      picker('Bundles', 'Release: one bundle per load group, skeletons share repacked pages (what a game ships). Development: one bundle per asset, so you can swap one asset at a time.', [['release', 'Release · per load group'], ['development', 'Development · per asset']], c.mode ?? 'release', false, (v) => set({ mode: v })),
+      picker('Max page size', 'Largest atlas page side. Larger pages mean fewer draw calls but more GPU memory per page.', [[1024, '1024 px'], [2048, '2048 px'], [4096, '4096 px']], maxSize, false, (v) => setAtlas({ maxSize: v }))),
+    h('div', { class: 'settings-row' },
+      picker('Output', '.tbla bundles: a few files that stream in (ship this). Loose files: every file on its own with assets.manifest.json (inspect, debug).', [['tbla', '.tbla bundles'], ['files', 'Loose files']], c.format ?? 'tbla', false, (v) => set({ format: v })),
+      toggle('Standalone images', 'PNG / WebP / JPG files not used by an atlas, sprite sheet or font, exported as textures', c.images !== false, (on) => set({ images: on }))),
+    h('h4', { textContent: 'GPU compression' }),
+    h('div', { class: 'settings-row' },
+      picker('KTX2', web ? 'KTX2 encoding needs the desktop app.' : 'GPU-compressed pages (Basis Universal) beside the images: less GPU memory and faster uploads. UASTC keeps quality, ETC1S is smallest.', [['none', web ? 'None (desktop app)' : 'None'], ['uastc', 'UASTC · quality'], ['etc1s', 'ETC1S · size']], ktx2, web, (v) => set({ ktx2: v as TabulaProjectConfig['ktx2'] })),
+      slider(etc1s ? 'ETC1S quality' : 'UASTC level', ktx2 === 'none' ? 'Pick UASTC or ETC1S to set encoder quality.' : etc1s ? 'ETC1S quality 1-255: higher is larger and better.' : 'UASTC level 0-4: higher encodes slower and looks better.', etc1s ? 1 : 0, etc1s ? 255 : 4, c.ktx2Quality ?? (etc1s ? 128 : 2), String, ktx2 === 'none', (v) => set({ ktx2Quality: v }))),
+    h('h4', { textContent: 'Baking' }),
+    h('div', { class: 'settings-row' },
+      slider('FPS', "Samples per second for baked animations. Fully left is Auto: a rate from each animation's keys.", 0, 240, bake?.fps ?? 0, (v) => (v ? `${v} fps` : 'Auto'), !bake, (v) => setBake({ fps: v || undefined })),
+      picker('Precision', 'How far a baked value may drift from the live animation. Lossless is exact but largest; Balanced suits most games.', MAX_ERRORS.some(([v]) => v === (bake?.maxError ?? 0.05)) ? MAX_ERRORS : [...MAX_ERRORS, [bake!.maxError!, `Custom (${bake!.maxError})`]], bake?.maxError ?? 0.05, !bake, (v) => setBake({ maxError: v }))),
+    h('h4', { textContent: 'Packing' }),
+    h('div', { class: 'settings-row' },
+      slider('Padding', 'Empty pixels between packed regions, so filtering never bleeds a neighbour into an image.', 0, 16, atlas.padding ?? 2, (v) => `${v} px`, false, (v) => setAtlas({ padding: v })),
+      slider('Extrude', 'Edge pixels repeated around each region. Helps against seams when images are scaled or sit edge to edge.', 0, 8, atlas.extrude ?? 0, (v) => `${v} px`, false, (v) => setAtlas({ extrude: v }))),
+    ...groupRows));
+
+  $('settings').replaceChildren(h('div', { class: 'settings-body export-settings' },
+    configError ? h('div', { class: 'badge bad', textContent: configError }) : null,
+    tools,
+    h('div', { class: 'settings-row' },
+      picker('Format', 'Image format of the repacked atlas pages. Auto uses WebP when most source pages are WebP, PNG otherwise.', [['auto', 'Auto (as sources)'], ['png', 'PNG'], ['webp', 'WebP'], ['webp-lossless', 'WebP lossless']], c.imageFormat ?? 'auto', false, (v) => set({ imageFormat: v === 'auto' ? undefined : v })),
+      slider('WebP quality', lossy ? 'Lossy WebP quality, 1-100: higher is larger and sharper.' : 'Only used by lossy WebP pages (WebP, or Auto when it picks WebP).', 1, 100, c.quality ?? 90, String, !lossy, (v) => set({ quality: v }))),
+    h('div', { class: 'tiers', role: 'group', title: 'Extra copies of every page for other devices; the game picks one tier at load. 1× is always exported.' },
+      // 2× only for projects with @2x exports: without them every skeleton ships as raw JSON. Shown while it is on, to turn it off.
+      h('span', { textContent: 'Tiers' }), ...TIER_CHOICES.filter((t) => t <= 1 || tiers.includes(t)).map(tierButton)),
+    toggle('Bake animations', 'Pre-sample animations into compact baked data so the game skips most skeleton math at runtime. A skeleton that cannot be baked plays live.', !!bake, (on) => set({ bake: on ? {} : false })),
+    advanced,
+    h('span', { class: 'hint muted', textContent: web ? 'Kept while this page is open; the download includes tabula.config.json for the project folder.' : `Saved in ${project.dir}/tabula.config.json.` })));
   renderGroups();
-  $('settings').replaceChildren(
-    h('div', { class: 'settings-body' },
-      configError ? h('div', { class: 'badge bad', textContent: configError }) : null,
-      h('div', { class: 'field' }, h('span', { textContent: 'Export' }),
-        h('div', { class: 'inline-fields' },
-          choice('mode', [['release', 'Release (bundled)'], ['development', 'Development (per asset)']]),
-          choice('format', [['tbla', '.tbla bundles'], ['files', 'Loose files']])),
-        h('span', { class: 'hint', textContent: (c.mode ?? 'release') === 'release'
-          ? 'Release: one .tbla per load group and tier; skeletons of a page set share atlas pages (fewest draw calls).'
-          : 'Development: one .tbla per asset and tier, each with its own pages: swap or send one asset at a time.' }),
-        h('span', { class: 'hint muted', textContent: (c.format ?? 'tbla') === 'tbla'
-          ? '.tbla bundles: everything packed into a few files that stream in. Few requests, one file per tier to upload. Use this to ship.'
-          : 'Loose files: every skeleton, page and font as its own file, with assets.manifest.json. Easy to open and inspect; use this to debug.' })),
-      h('div', { class: 'field' }, h('span', { textContent: 'Resolution tiers' }), h('div', { class: 'tiers' }, ...tierBoxes),
-        h('span', { class: 'hint', textContent: 'Copies of the atlas pages at other resolutions. The game chooses one (default 1x): lower tiers save GPU memory on weak phones, 2x adds detail on desktop.' })),
-      h('div', { class: 'field' }, h('span', { textContent: 'GPU texture compression (KTX2)' }), codec,
-        h('span', { class: 'hint', textContent: web ? 'Needs the desktop app (it runs the native KTX2 encoder): the web export writes PNG / WebP pages only.'
-          : 'Pages stay compressed in GPU memory: about 4x less than PNG. UASTC keeps quality; ETC1S makes small files but can band gradients. Devices without support load the PNG.' })),
-      h('label', { title: 'Pre-sample animations into .baked files' }, bake, 'Bake animations'),
-      h('span', { class: 'hint muted', textContent: 'Baked animations cost far less CPU per frame; tiny differences from the editor are measured and kept under 0.05 units.' }),
-      h('label', { title: 'PNG / WebP / JPG files not used by an atlas, sprite sheet or font' }, imagesBox, 'Export standalone images'),
-      h('span', { class: 'hint muted', textContent: web ? 'Kept while this page is open; the download includes tabula.config.json for the project folder.' : `Saved in ${project.dir}/tabula.config.json.` }),
-    ),
-  );
 }
 
 function renderReport(log?: HTMLElement): void {
@@ -444,9 +606,9 @@ async function runExport(): Promise<void> {
   }, 500);
   renderReport(panel);
   showTool('right', 'report');
-  $('status').textContent = 'Exporting… 0%';
+  status('Exporting… 0%', 'busy');
   try {
-    const res = await api('/api/export', { method: 'POST', body: JSON.stringify({ compress: [...compress] }) });
+    const res = await api('/api/export', { method: 'POST', body: JSON.stringify({ compress: [...compress], skeletons: included ? [...included] : undefined }) });
     if (!res.ok || !res.body) throw new Error((await res.json() as { error?: string }).error ?? res.statusText);
     const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
     let buffer = '';
@@ -462,7 +624,7 @@ async function runExport(): Promise<void> {
           bar.value = event.fraction;
           percent.textContent = `${Math.floor(event.fraction * 100)}%`;
           item.textContent = event.total > 1 ? `${event.item} · ${Math.min(event.done + 1, event.total)} of ${event.total}` : event.item;
-          $('status').textContent = `Exporting… ${Math.floor(event.fraction * 100)}%`;
+          status(`Exporting… ${Math.floor(event.fraction * 100)}%`, 'busy');
         } else if (event.type === 'step') line(event.message);
         else if (event.type === 'warning') line(`${event.asset ? `${event.asset}: ` : ''}${event.message}`, 'warn');
         else if (event.type === 'fallback') line(`${event.asset}: exported as JSON (${event.reason})`, 'bad');
@@ -470,10 +632,10 @@ async function runExport(): Promise<void> {
         else if (event.type === 'done') line(`Done in ${(event.report.ms / 1000).toFixed(1)} s`);
       }
     }
-    $('status').textContent = 'Exported.';
+    status('Exported.');
   } catch (err) {
     line(`Export failed: ${(err as Error).message}`, 'bad');
-    $('status').textContent = 'Export failed.';
+    status('Export failed. See the export report.', 'error');
   } finally {
     clearInterval(clock);
     exporting = false;
@@ -482,8 +644,55 @@ async function runExport(): Promise<void> {
   }
 }
 
+/** The header's "More" menu, as the viewer's (packages/viewer/src/ui/bindUi.js bindActionMenu). */
+function bindActionMenu(): void {
+  const trigger = $('action-menu-trigger');
+  const panel = $('action-menu-panel');
+  const host = $('action-menu');
+  const close = (): void => {
+    panel.hidden = true;
+    trigger.setAttribute('aria-expanded', 'false');
+  };
+  trigger.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const willOpen = panel.hidden;
+    panel.hidden = !willOpen;
+    trigger.setAttribute('aria-expanded', String(willOpen));
+    if (!willOpen) return;
+    const rect = trigger.getBoundingClientRect();
+    panel.style.top = `${Math.round(rect.bottom + 6)}px`;
+    panel.style.left = `${Math.round(Math.max(8, rect.right - panel.offsetWidth))}px`;
+  });
+  panel.addEventListener('click', (event) => {
+    if (event.target instanceof Element && event.target.closest('button, a')) close();
+  });
+  document.addEventListener('pointerdown', (event) => {
+    if (!panel.hidden && !(event.target instanceof Node && host.contains(event.target))) close();
+  });
+  $('btn-clear-saved').addEventListener('click', () => {
+    if (!window.confirm('Forget the saved export preset and panel layout in this browser?')) return;
+    for (const key of Object.keys(localStorage)) if (key.startsWith('tabula-exporter.')) localStorage.removeItem(key);
+    status('Saved settings cleared. They reset on the next load.');
+  });
+}
+
+let bannerTimer = 0;
+
+/**
+ * Status messages in the viewer's banner (packages/viewer/src/ui/bindUi.js showBanner), under the header.
+ * Plain notes close by themselves; errors and work in progress stay until replaced or closed.
+ */
+function status(message: string, kind: 'note' | 'busy' | 'error' = 'note'): void {
+  clearTimeout(bannerTimer);
+  const banner = $('banner');
+  banner.hidden = !message;
+  banner.classList.toggle('is-error', kind === 'error');
+  $('banner-text').textContent = message;
+  if (message && kind === 'note') bannerTimer = window.setTimeout(() => { banner.hidden = true; }, 4000);
+}
+
 function showError(err: Error): void {
-  $('status').textContent = err.message;
+  status(err.message, 'error');
 }
 
 // --- open ----------------------------------------------------------------------
@@ -494,20 +703,69 @@ function showStart(recent: string[], error = ''): void {
   $('export').hidden = true;
   $('pick').hidden = !desktop && !web;
   $('path-form').hidden = web;
-  $('recent-block').hidden = web;
-  if (web) $('start-intro').textContent = 'A folder with Spine JSON exports (with their .atlas and page images), sprite sheets and fonts. It is read in this page, nothing is uploaded; the export downloads as a zip. KTX2 needs the desktop app.';
+  // index.html ships the web wording so the hosted page shows it on first paint.
+  if (!web) $('start-intro').innerHTML = 'A folder with Spine JSON exports (with their .atlas and page images), sprite sheets and fonts. The export goes to <code>tabula-export</code> inside it.';
   $('drop-hint').textContent = desktop || web ? 'or drop a folder here (or onto the window, any time)' : 'In a browser, type the folder path below. The desktop app also opens a folder picker and takes dropped folders.';
   $('start-error').textContent = error;
-  $('recent').replaceChildren(...(recent.length ? recent.map((dir) => {
-    const b = h('button', { textContent: dir, title: dir });
-    b.onclick = () => void openProject(dir);
-    return h('li', {}, b);
-  }) : [h('li', { class: 'muted', textContent: 'No recent projects' })]));
+  if (!web) serverRecent = recent;
+  void renderRecent();
+}
+
+/** Recent projects: folder paths from the server (desktop, `tabula app`), or folder handles on the website. */
+let serverRecent: string[] = [];
+
+async function recentList(): Promise<RecentListItem[]> {
+  if (web) return recentSupported ? recentItems(await listRecent('exporter')) : [];
+  return serverRecent.map((dir) => ({ key: dir, kind: 'folder' as const, name: dir.split(/[\\/]/).filter(Boolean).pop() ?? dir, detail: dir }));
+}
+
+/** Reload the recent projects (the server adds one on every open) and redraw them. */
+async function refreshRecent(): Promise<void> {
+  if (!web) serverRecent = (await (await api('/api/state')).json() as { recent: string[] }).recent;
+  await renderRecent();
+}
+
+async function renderRecent(): Promise<void> {
+  const items = await recentList();
+  $('recent-block').hidden = !items.length;
+  renderRecentList($('recent'), items, (key) => void openRecent(key), (key) => void forgetRecent(key));
+  renderRecentMenu($('menu-recent'), items, (key) => void openRecent(key), () => void forgetRecent());
+}
+
+async function openRecent(key: string): Promise<void> {
+  if (!web) return openProject(key);
+  const entry = (await listRecent('exporter')).find((e) => e.id === key);
+  const dir = entry?.handles[0] as FileSystemDirectoryHandle | undefined;
+  if (!entry || !dir) return;
+  if (!(await grantRead([dir]))) {
+    status(`No access to ${entry.name}. Allow it, or open the folder again.`, 'error');
+    return;
+  }
+  try {
+    const files = await readFolder(dir, SKIP);
+    await addRecent('exporter', 'folder', dir.name, [dir]);
+    await openWebProject(dir.name, files);
+  } catch {
+    status(`${entry.name} is gone or was moved. Removed from recent.`, 'error');
+    await removeRecent(entry.id);
+    void renderRecent();
+  }
+}
+
+/** Forget one recent project, or all of them without a key. */
+async function forgetRecent(key?: string): Promise<void> {
+  if (web) await (key ? removeRecent(key) : clearRecent('exporter'));
+  else serverRecent = (await (await api('/api/recent/forget', { method: 'POST', body: JSON.stringify({ dir: key }) })).json() as { recent: string[] }).recent;
+  await renderRecent();
 }
 
 /** Forget everything of the previous project (selection, what is checked for compression). */
 function resetProject(): void {
   selected = null;
+  included = null;
+  askChooser = true;
+  resetPreview();
+  fillAnimations([]);
   compress.clear();
 }
 
@@ -523,6 +781,7 @@ async function openProject(dir: string): Promise<void> {
 }
 
 async function showProject(select: string | null = null): Promise<void> {
+  void refreshRecent();
   resetProject();
   selected = select;
   ($('start') as HTMLElement).hidden = true;
@@ -536,19 +795,28 @@ const SKIP = /(^|\/)(\.[^/]*|node_modules|tabula-export)(\/|$)/;
 
 /** Website: load a picked or dropped folder (paths relative to it) and show it. */
 async function openWebProject(name: string, files: [string, File][]): Promise<void> {
-  $('status').textContent = `Reading ${name}…`;
+  status(`Reading ${name}…`, 'busy');
   try {
     await openWebFolder(name, files.filter(([path]) => !SKIP.test(path)));
   } catch (err) {
     showStart([], (err as Error).message);
     return;
   }
-  $('status').textContent = '';
+  status('');
   await showProject();
 }
 
-/** Website: the folder picker (an <input webkitdirectory>, which every current browser has). */
-function pickWebFolder(): void {
+/** Website: the folder picker; Chromium's remembers the folder for Recent, others use <input webkitdirectory>. */
+async function pickWebFolder(): Promise<void> {
+  if (recentSupported) {
+    const dir = await pickFolder();
+    if (!dir) return;
+    status(`Reading ${dir.name}…`, 'busy');
+    const files = await readFolder(dir, SKIP);
+    await addRecent('exporter', 'folder', dir.name, [dir]);
+    void renderRecent();
+    return openWebProject(dir.name, files);
+  }
   const input = h('input', { type: 'file', multiple: true });
   input.webkitdirectory = true;
   input.onchange = () => {
@@ -601,19 +869,54 @@ async function boot(): Promise<void> {
   else showStart(state.recent);
 }
 
+// --- choose skeletons (large folders) ---------------------------------------------
+
+/** Every skeleton in the folder; `project.skeletons` holds only the chosen ones. */
+let allSkeletons: AppProject['skeletons'] = [];
+/** Skeletons to show and export; null: all of them. */
+let included: Set<string> | null = null;
+/** Ask once after a project opens (when it has several skeletons). */
+let askChooser = false;
+
+/** The checklist of the folder's skeletons; false when cancelled. */
+async function pickSkeletons(): Promise<boolean> {
+  const names = await chooseItems({
+    title: 'Choose skeletons',
+    label: `${project.dir}: ${allSkeletons.length} skeletons. Only the ticked ones are shown and exported.`,
+    items: allSkeletons.map((k) => ({ name: k.name, meta: `${k.json.includes('/') ? `${k.json.slice(0, k.json.lastIndexOf('/'))} · ` : ''}${sizeLabel(k.jsonBytes)}` })),
+    picked: included ?? (allSkeletons.length <= 12 ? allSkeletons.map((k) => k.name) : []),
+    action: 'Use selected',
+  });
+  if (!names) return false;
+  included = names.length === allSkeletons.length ? null : new Set(names);
+  return true;
+}
+
 async function refresh(): Promise<void> {
   const res = await api('/api/project');
   if (res.status === 409) return boot();
   project = await res.json() as AppProject;
+  allSkeletons = project.skeletons;
+  if (askChooser) {
+    askChooser = false;
+    if (allSkeletons.length > 1) await pickSkeletons();
+  }
+  if (included) project.skeletons = allSkeletons.filter((k) => included!.has(k.name));
   if (!compress.size) for (const s of project.skeletons) compress.add(s.name);
   $('project-path').textContent = project.dir;
   renderAssets();
   renderSettings();
   renderReport();
+  renderTierSelect();
   if (selected && (project.skeletons.some((s) => s.name === selected) || project.bundles.some((b) => `bundle:${b.path}` === selected))) select(selected);
-  else renderDetails();
+  else {
+    renderDetails();
+    showPreview();
+  }
 }
 
+$('animation').onchange = () => showPreview();
+$('tier').onchange = () => showPreview();
 $('export').onclick = () => void runExport();
 $('open').onclick = () => void chooseFolder();
 $('pick').onclick = () => void chooseFolder();
@@ -636,21 +939,31 @@ document.addEventListener('drop', (e) => {
   const file = e.dataTransfer?.files[0];
   if (!file) return;
   if (web) {
+    const handles = droppedHandles(e.dataTransfer);
     const entry = e.dataTransfer?.items[0]?.webkitGetAsEntry();
     if (!entry?.isDirectory) {
-      $('status').textContent = 'Drop the project folder, not single files.';
+      status('Drop the project folder, not single files.', 'error');
       return;
     }
+    void handles.then((list) => {
+      const dir = list.find((h) => h.kind === 'directory');
+      if (dir) void addRecent('exporter', 'folder', dir.name, [dir]).then(renderRecent);
+    });
     void readDropped(entry as FileSystemDirectoryEntry).then((files) => openWebProject(entry.name, files), showError);
     return;
   }
   if (!desktop) {
-    $('status').textContent = 'Dropping folders works in the desktop app; here, type the folder path.';
+    status('Dropping folders works in the desktop app; here, type the folder path.', 'error');
     void chooseFolder();
     return;
   }
   void openProject(desktop.pathForFile(file));
 });
 initDrawers();
+$('banner-close').onclick = () => status('');
+bindActionMenu();
+// The start card is in the page from first paint; the desktop app may reopen a project instead.
+if (desktop) ($('start') as HTMLElement).hidden = true;
+bindHoverTips();
 desktop?.onProjectOpened(() => void showProject());
 void boot().catch(showError);

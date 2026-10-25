@@ -710,27 +710,6 @@ select {
   cursor: grabbing;
 }
 
-#drop-hint {
-  position: absolute;
-  inset: 12px;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  border: 2px dashed rgba(210, 255, 0, 0.55);
-  border-radius: 8px;
-  background: rgba(17, 17, 17, 0.55);
-  color: var(--accent);
-  font-weight: 600;
-  text-align: center;
-  pointer-events: none;
-}
-
-#drop-hint[hidden] {
-  display: none;
-}
-
 #transport {
   display: flex;
   align-items: center;
@@ -1666,3 +1645,22 @@ select {
 #session-restore-clear:hover {
   color: var(--text);
 }
+
+/* Start card (shared in packages/ui/chrome.css): the viewer's own backdrop, edge and drop surface. */
+#start {
+  position: fixed;
+  inset: 34px 0 0;
+  z-index: 50;
+  background:
+    radial-gradient(circle, #f4f4ed14 1px, transparent 1.5px) 0 0 / 24px 24px,
+    radial-gradient(ellipse at 50% 45%, #3b432040, transparent 60%),
+    var(--bg);
+}
+body.is-restoring-session #start { display: none; }
+#start .start-card { border-left: 3px solid var(--accent); }
+#start .start-card .drop { background: repeating-conic-gradient(#262626 0 25%, #1d1d1d 0 50%) 0 0 / 16px 16px; }
+/* Simple mode hides the header, so the card takes the whole window and offers the way back. */
+html[data-simple] #start { inset: 0; }
+html:not([data-simple]) .start-full { display: none; }
+.start-full { align-self: center; padding: 0; border: 0; background: none; color: var(--faint); font: 12px var(--font); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.start-full:hover { color: var(--accent); }

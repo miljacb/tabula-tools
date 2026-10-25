@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import { sharedStyles } from '../ui/vite-plugin.mjs';
 
 /** Cross-origin isolation: lets the Performance panel call performance.measureUserAgentSpecificMemory(). */
 const isolationHeaders = {
@@ -9,6 +10,8 @@ const isolationHeaders = {
 export default defineConfig({
   // Served under /viewer/ on the tools site (see the root netlify.toml).
   base: '/viewer/',
+  // <link>s to packages/ui/*.css load in dev too.
+  plugins: [sharedStyles()],
   resolve: { dedupe: ['pixi.js'] },
   // Fixed port: the homepage dev server (packages/site) proxies /viewer/ here.
   server: { port: 5181, strictPort: true, headers: isolationHeaders },

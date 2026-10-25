@@ -27,6 +27,8 @@ export interface AppSkeleton {
   warnings: string[];
   /** JSON + atlas + page bytes. */
   bytes: number;
+  /** The skeleton JSON's own bytes. */
+  jsonBytes: number;
   pages: string[];
 }
 
@@ -69,12 +71,13 @@ export async function readProject(projectDir: string, outDir: string): Promise<A
   const rel = (p: string): string => relative(projectDir, p).split(sep).join('/');
   const skeletons: AppSkeleton[] = [];
   for (const s of files.skeletons) {
-    const entry: AppSkeleton = { name: s.name, json: rel(s.json), atlas: rel(s.atlas), spineVersion: '', animations: [], skins: [], errors: [], warnings: [], bytes: 0, pages: [] };
+    const entry: AppSkeleton = { name: s.name, json: rel(s.json), atlas: rel(s.atlas), spineVersion: '', animations: [], skins: [], errors: [], warnings: [], bytes: 0, jsonBytes: 0, pages: [] };
     skeletons.push(entry);
     try {
       const json = JSON.parse(await readFile(s.json, 'utf-8')) as { skeleton?: { spine?: string } };
       entry.spineVersion = String(json.skeleton?.spine ?? '');
-      entry.bytes += (await stat(s.json)).size;
+      entry.jsonBytes = (await stat(s.json)).size;
+      entry.bytes += entry.jsonBytes;
       const atlasText = await readFile(s.atlas, 'utf-8').catch(() => null);
       if (atlasText === null) throw new Error(`no ${rel(s.atlas)}`);
       entry.bytes += new TextEncoder().encode(atlasText).length;

@@ -280,6 +280,8 @@ export function worldBoundsOf(inst) {
  */
 export function fitWorldRect(rect) {
   if (!app || !camera || rect.width <= 0 || rect.height <= 0) return;
+  // Pixi's resizeTo only catches up on the next frame; fit against the stage's real size now.
+  app.resize();
   const pad = 48;
   const viewW = app.screen.width;
   const viewH = app.screen.height;

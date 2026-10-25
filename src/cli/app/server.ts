@@ -7,12 +7,15 @@
  *
  *   GET  /api/state            { project: folder or null, recent: folders }
  *   POST /api/open             { dir } → open a project folder (a file: its folder)
+ *   POST /api/recent/forget    { dir? } → drop one recent project (all without dir) → { recent }
  *   GET  /api/project          assets, settings, last export report (409 without a project)
  *   PUT  /api/config           save tabula.config.json
- *   POST /api/export           { compress?: string[] } → NDJSON events, then { type: 'done', report } or { type: 'failed', error }
+ *   POST /api/export           { compress?: string[], skeletons?: string[] } → NDJSON events, then { type: 'done', report } or { type: 'failed', error }
+ *   GET  /api/files?root=out   paths of the export's files (for the preview)
+ *   GET  /api/file?root=src|out&path=<path>   one project or export file
  */
 
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { existsSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -32,6 +35,8 @@ export interface AppServerOptions {
   outDir?: string;
   /** Where the recent projects are kept (default `~/.tabula/recent.json`). */
   recentFile?: string;
+  /** Called with the recent projects whenever they change (the desktop app's Open Recent menu). */
+  onRecent?: (recent: string[]) => void;
 }
 
 /** Connect-style handler (`next` for requests it does not serve), with `open` to switch the project. */
@@ -40,6 +45,10 @@ export type AppHandler = ((req: IncomingMessage, res: ServerResponse, next: () =
   open(dir: string): Promise<string>;
   /** The open project folder, or null. */
   readonly project: string | null;
+  /** The recent projects, newest first (folders that still exist). */
+  recent(): Promise<string[]>;
+  /** Forget one recent project, or all of them without `dir`. */
+  forget(dir?: string): Promise<void>;
 };
 
 const MAX_RECENT = 10;
@@ -71,10 +80,16 @@ export function createAppHandler(options: AppServerOptions = {}): AppHandler {
     if (running) throw new Error('An export is running; open the folder when it is done');
     projectDir = folder;
     outDir = resolve(folder === initial && options.outDir ? options.outDir : join(folder, 'tabula-export'));
-    const recent = [folder, ...(await readRecent()).filter((d) => d !== folder)].slice(0, MAX_RECENT);
+    await writeRecent([folder, ...(await readRecent()).filter((d) => d !== folder)].slice(0, MAX_RECENT));
+    return folder;
+  };
+  const writeRecent = async (recent: string[]): Promise<void> => {
     await mkdir(dirname(recentFile), { recursive: true });
     await writeFile(recentFile, `${JSON.stringify(recent, null, 1)}\n`).catch(() => undefined);
-    return folder;
+    options.onRecent?.(recent);
+  };
+  const forget = async (dir?: string): Promise<void> => {
+    await writeRecent(dir ? (await readRecent()).filter((d) => d !== dir) : []);
   };
   const ready = initial ? open(initial) : Promise.resolve(null);
 
@@ -95,6 +110,11 @@ export function createAppHandler(options: AppServerOptions = {}): AppHandler {
         return sendJson(res, { error: (err as Error).message }, 400);
       }
     }
+    if (path === '/api/recent/forget' && req.method === 'POST') {
+      const { dir } = JSON.parse((await readBody(req)) || '{}') as { dir?: string };
+      await forget(dir);
+      return sendJson(res, { recent: await readRecent() });
+    }
     if (!projectDir) {
       if (path.startsWith('/api/')) return sendJson(res, { error: 'No project is open' }, 409);
       return next();
@@ -107,14 +127,14 @@ export function createAppHandler(options: AppServerOptions = {}): AppHandler {
     }
     if (path === '/api/export' && req.method === 'POST') {
       if (running) return sendJson(res, { error: 'An export is already running' }, 409);
-      const body = JSON.parse((await readBody(req)) || '{}') as { compress?: string[] };
+      const body = JSON.parse((await readBody(req)) || '{}') as { compress?: string[]; skeletons?: string[] };
       running = true;
       res.writeHead(200, { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-store' });
       const line = (value: unknown): void => void res.write(`${JSON.stringify(value)}\n`);
       const sourceDir = projectDir;
       try {
         const report = await exportProject({
-          sourceDir, outDir, config: await loadProjectConfig(projectDir), compress: body.compress,
+          sourceDir, outDir, config: await loadProjectConfig(projectDir), compress: body.compress, skeletons: body.skeletons,
           onEvent: (event: ExportEvent) => line(event),
         });
         line({ type: 'done', report: { ...report, manifest: undefined } });
@@ -126,6 +146,10 @@ export function createAppHandler(options: AppServerOptions = {}): AppHandler {
       }
       return;
     }
+    if (path === '/api/files' && req.method === 'GET') return sendJson(res, await listFiles(resolve(outDir)));
+    if (path === '/api/file' && req.method === 'GET') {
+      return sendFile(res, resolve(url.searchParams.get('root') === 'out' ? outDir : projectDir), url.searchParams.get('path') ?? '');
+    }
     next();
   };
 
@@ -136,6 +160,8 @@ export function createAppHandler(options: AppServerOptions = {}): AppHandler {
     });
   }) as AppHandler;
   handler.open = open;
+  handler.recent = readRecent;
+  handler.forget = forget;
   Object.defineProperty(handler, 'project', { get: () => projectDir });
   return handler;
 }
@@ -143,6 +169,27 @@ export function createAppHandler(options: AppServerOptions = {}): AppHandler {
 function sendJson(res: ServerResponse, value: unknown, status = 200): void {
   res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(value));
+}
+
+/** Files under `dir`, relative with `/`, sorted; none when it does not exist. */
+async function listFiles(dir: string, prefix = ''): Promise<string[]> {
+  const entries = await readdir(join(dir, prefix), { withFileTypes: true }).catch(() => []);
+  const out: string[] = [];
+  for (const e of entries) {
+    const path = `${prefix}${e.name}`;
+    if (e.isDirectory()) out.push(...await listFiles(dir, `${path}/`));
+    else out.push(path);
+  }
+  return out.sort();
+}
+
+async function sendFile(res: ServerResponse, root: string, path: string): Promise<void> {
+  const file = resolve(root, path);
+  if (!file.startsWith(root + sep)) return sendJson(res, { error: 'Outside the folder' }, 400); // no ../
+  const bytes = await readFile(file).catch(() => null);
+  if (!bytes) return sendJson(res, { error: `Not found: ${path}` }, 404);
+  res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-store' });
+  res.end(bytes);
 }
 
 function readBody(req: IncomingMessage): Promise<string> {

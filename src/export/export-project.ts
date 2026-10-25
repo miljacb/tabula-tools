@@ -82,6 +82,8 @@ export interface ExportOptions {
   config?: TabulaProjectConfig;
   /** Skeletons to compress (names or globs); the rest are exported raw. Default: all. */
   compress?: string[];
+  /** Skeletons to export at all (names); the others are left out. Default: all (a folder picked in part in the app). */
+  skeletons?: string[];
   /** KTX2 encodings cache (default `ktx2/` in the tools cache, see `toolsCacheDir`: never inside the project). */
   cacheDir?: string;
   onEvent?: (event: ExportEvent) => void;
@@ -200,6 +202,10 @@ export async function exportProject(options: ExportOptions): Promise<ExportRepor
   emit({ type: 'step', message: `Reading the project (${mode}, ${format === 'tbla' ? '.tbla bundles' : 'loose files'})` });
   const found = await discoverProject(sourceDir, outDir, options.cacheDir);
   if (config.images === false) found.images = [];
+  if (options.skeletons) {
+    const keep = new Set(options.skeletons);
+    found.skeletons = found.skeletons.filter((s) => keep.has(s.name));
+  }
   // No format set: follow the source. Lossy WebP pages saved as PNG grow several times (the PNG keeps the WebP artifacts losslessly).
   if (!config.imageFormat && found.skeletons.length) {
     const atlases = await Promise.all(found.skeletons.map((s) => readFile(s.atlas, 'utf-8').catch(() => '')));

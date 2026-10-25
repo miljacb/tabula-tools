@@ -1,4 +1,6 @@
 import { importFiles } from './session.js';
+import { droppedHandles } from '../../../ui/recent.ts';
+import { rememberDropped } from '../ui/recent.js';
 
 /**
  * @param {DataTransfer | null} transfer
@@ -63,16 +65,22 @@ export function bindFileDrop() {
     if (!isFileDrag(transfer)) return;
     event.preventDefault();
     if (transfer) transfer.dropEffect = 'copy';
+    document.body.classList.add('dragging');
   };
+  const endDrag = () => document.body.classList.remove('dragging');
 
   document.addEventListener('dragenter', allowDrop, true);
   document.addEventListener('dragover', allowDrop, true);
+  document.addEventListener('dragleave', (event) => { if (!event.relatedTarget) endDrag(); }, true);
 
   document.addEventListener('drop', (event) => {
     const transfer = event.dataTransfer;
+    endDrag();
     if (!isFileDrag(transfer)) return;
     event.preventDefault();
     event.stopPropagation();
+    // Handles must be taken inside the event; they let Recent reopen what was dropped (Chromium).
+    void droppedHandles(transfer).then(rememberDropped);
     void collectFilesFromDataTransfer(transfer).then((files) => {
       if (files.length) void importFiles(files);
     });

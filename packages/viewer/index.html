@@ -8,9 +8,13 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="theme-color" content="#1b1f27" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600&display=swap" />
   <link rel="stylesheet" href="/src/styles/viewer.css" />
   <link rel="stylesheet" href="/src/styles/composer.css" />
   <link rel="stylesheet" href="/src/styles/studio.css" />
+  <link rel="stylesheet" href="../ui/chrome.css" />
   <script>
     // Before first paint: the saved drawer layout, so nothing jumps when the app script takes over (drawers.js).
     try {
@@ -29,7 +33,7 @@
 </head>
 <body>
   <header class="app-header">
-    <a class="app-brand" href="/" title="All tools">Tabula <span>Viewer</span></a>
+    <a class="app-brand" href="/" title="All tools"><img class="app-brand-mark" src="./tools-logo.svg" width="24" height="22" alt="" aria-hidden="true" draggable="false"><span>Tabula Viewer</span></a>
     <div class="app-header-actions">
       <button id="btn-simple" class="header-btn" type="button" aria-pressed="false" data-tip="Simple mode: a reduced preview like Studio's .tbla viewer. Remembered in this browser.">Simple</button>
       <span class="header-sep" aria-hidden="true"></span>
@@ -41,6 +45,7 @@
       <div class="action-menu" id="action-menu">
         <button id="action-menu-trigger" class="header-icon" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="More" data-tip="More"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg></button>
         <div id="action-menu-panel" class="action-menu-panel" role="menu" hidden>
+          <div id="menu-recent" hidden></div>
           <button id="btn-samples" type="button" role="menuitem">Load samples</button>
           <hr />
           <button id="btn-open" type="button" role="menuitem" data-tip="Open a scene layout (.json), then choose its skeleton files. They are placed as saved.">Open scene…</button>
@@ -52,6 +57,27 @@
       </div>
     </div>
   </header>
+  <section id="start">
+    <div class="start-card">
+      <p class="eyebrow"><i class="live-dot" aria-hidden="true"></i>Tabula Viewer</p>
+      <h1>Open a <em>skeleton</em></h1>
+      <p class="start-tags"><span>Preview</span><span>Inspect</span><span>Compose</span></p>
+      <p class="start-intro">Spine JSON with its .atlas and page images, or a Tabula export (.tbla, assets.manifest.json). It is read in this page, nothing is uploaded.</p>
+      <div class="drop">
+        <svg class="drop-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="m10 9 5 3-5 3V9Z"/></svg>
+        <div class="start-actions">
+          <button id="start-open" class="primary" type="button">Open files…</button>
+          <button id="start-open-folder" class="secondary" type="button" hidden>Open folder…</button>
+        </div>
+        <span class="drop-hint">or drop files or a folder here (or onto the window, any time)</span>
+      </div>
+      <div id="recent-block" class="recent-block" hidden>
+        <h2>Recent</h2>
+        <ul id="recent" class="recent"></ul>
+      </div>
+      <button id="start-full" class="start-full" type="button">Simple mode is on · switch to the full viewer</button>
+    </div>
+  </section>
   <section class="shell">
     <nav class="tool-rail" aria-label="Tools">
       <button class="rail-tool" type="button" data-tool="outliner" data-drawer="right" data-tip="Outliner" aria-label="Outliner" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m3 13 9 5 9-5"/></svg></button>
@@ -120,7 +146,6 @@
           <button id="simple-zoom-out" type="button" aria-label="Zoom out" data-tip="Zoom out (or scroll)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M8 11h6"/></svg></button>
           <button id="simple-fit" type="button" aria-label="Fit" data-tip="Fit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
         </div>
-        <div id="drop-hint">Drop a skeleton with its atlas and images, or a .tbla export</div>
       </div>
       <section id="bottom-drawer" class="dock bottom-drawer is-unavailable">
         <div class="drawer-resize" role="separator" aria-orientation="horizontal" aria-label="Resize animations drawer" title="Drag to resize · double-click to reset" tabindex="0"></div>
