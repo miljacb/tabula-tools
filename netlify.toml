@@ -1,6 +1,13 @@
 [build]
-  command = "pnpm install --frozen-lockfile && pnpm build:web"
+  # Netlify installs deps itself (pnpm, detected from pnpm-lock.yaml); corepack pins the
+  # pnpm version from package.json's packageManager field.
+  command = "pnpm build:web"
   publish = "dist-web"
+
+[build.environment]
+  NODE_VERSION = "24"
+  COREPACK_ENABLE_STRICT = "0"
+  PNPM_FLAGS = "--frozen-lockfile"
 
 # The viewer is a single-page app under /viewer/.
 [[redirects]]
